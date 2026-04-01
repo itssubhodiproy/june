@@ -1,6 +1,3 @@
-I can give you the entire document in one response for architecture.md, api.md, and schema.md. They're dense reference docs but within output limits. Let me start with architecture.md now — the full thing.
-
----
 
 # Architecture — June Review Table
 
@@ -10,39 +7,7 @@ I can give you the entire document in one response for architecture.md, api.md, 
 
 ## System Architecture
 
-```
-                              ┌──────────────┐
-                              │   FRONTEND   │
-                              │  React / TS  │
-                              └──────┬───────┘
-                                     │
-                              ┌──────▼───────┐
-                              │    NGINX     │
-                              └──┬───────┬───┘
-                                 │       │
-                    ┌────────────┘       └────────────┐
-                    ▼                                 ▼
-          ┌──────────────────┐              ┌──────────────┐
-          │    API SERVER    │              │  SSE SERVICE  │
-          │  Python/FastAPI  │              │      Go       │
-          └────────┬─────────┘              └───────┬──────┘
-                   │                                │
-        ┌──────────┼──────────────┐                 │
-        ▼          ▼              ▼                  │
-   ┌─────────┐┌────────┐  ┌──────────┐              │
-   │Postgres ││  S3    │  │  Redis   │◄─────────────┘
-   │+pgvector││(MinIO) │  │Queue+Pub │  subscribes
-   └─────────┘└────────┘  └──┬────┬──┘
-                              │    │
-              ┌───────────────┘    └───────────────┐
-              ▼                                    ▼
-       ┌──────────────┐                  ┌─────────────────┐
-       │   DOCUMENT   │                  │   EXTRACTION    │
-       │    WORKER    │                  │     WORKER      │
-       │   Python     │                  │    Python       │
-       │  LiteParse   │                  │   RAG + LLM    │
-       └──────────────┘                  └─────────────────┘
-```
+![alt text](image.png)
 
 **API Server** — Single FastAPI application. All CRUD for tables, columns, cells, documents. Generates presigned S3 URLs. Enqueues tasks to Redis. Serves the frontend's every need. Stateless.
 

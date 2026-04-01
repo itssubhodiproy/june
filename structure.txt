@@ -1,0 +1,197 @@
+.
+├── docs
+│   ├── services
+│   │   ├── api-server.md
+│   │   ├── document-worker.md
+│   │   ├── extraction-worker.md
+│   │   └── sse-service.md
+│   ├── api.md
+│   ├── architecture.md
+│   ├── frontend.md
+│   ├── image.png
+│   ├── infrastructure.md
+│   ├── local-setup.md
+│   ├── product.md
+│   └── schema.md
+├── frontend
+│   ├── public
+│   │   └── .gitkeep
+│   ├── src
+│   │   ├── api
+│   │   │   ├── client.ts
+│   │   │   ├── columns.ts
+│   │   │   ├── documents.ts
+│   │   │   ├── extraction.ts
+│   │   │   ├── jobs.ts
+│   │   │   └── tables.ts
+│   │   ├── components
+│   │   │   ├── drawer
+│   │   │   │   ├── column-section.tsx
+│   │   │   │   ├── memory-drawer.tsx
+│   │   │   │   └── source-chip.tsx
+│   │   │   ├── forms
+│   │   │   │   ├── column-form.tsx
+│   │   │   │   └── upload-button.tsx
+│   │   │   ├── shared
+│   │   │   │   ├── delete-dialog.tsx
+│   │   │   │   └── save-indicator.tsx
+│   │   │   ├── table
+│   │   │   │   ├── column-header.tsx
+│   │   │   │   ├── data-cell.tsx
+│   │   │   │   ├── document-cell.tsx
+│   │   │   │   ├── table-grid.tsx
+│   │   │   │   └── table-header.tsx
+│   │   │   ├── ui
+│   │   │   │   └── .gitkeep
+│   │   │   └── viewer
+│   │   │       ├── document-viewer.tsx
+│   │   │       └── highlight-overlay.tsx
+│   │   ├── hooks
+│   │   │   ├── use-sse.ts
+│   │   │   ├── use-table.ts
+│   │   │   └── use-upload.ts
+│   │   ├── lib
+│   │   │   ├── constants.ts
+│   │   │   └── utils.ts
+│   │   ├── pages
+│   │   │   ├── login.tsx
+│   │   │   ├── tables.tsx
+│   │   │   └── table.tsx
+│   │   ├── stores
+│   │   │   ├── table-store.ts
+│   │   │   ├── ui-store.ts
+│   │   │   └── upload-store.ts
+│   │   ├── types
+│   │   │   ├── api.ts
+│   │   │   ├── events.ts
+│   │   │   └── models.ts
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── Dockerfile
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
+├── infra
+│   └── postgres
+│       └── init.sql
+├── services
+│   ├── api-server
+│   │   ├── alembic
+│   │   │   ├── versions
+│   │   │   │   └── .gitkeep
+│   │   │   └── env.py
+│   │   ├── app
+│   │   │   ├── middleware
+│   │   │   │   ├── auth.py
+│   │   │   │   ├── error_handler.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── models
+│   │   │   │   ├── base.py
+│   │   │   │   ├── cell.py
+│   │   │   │   ├── column.py
+│   │   │   │   ├── document_chunk.py
+│   │   │   │   ├── document.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── job.py
+│   │   │   │   ├── table_document.py
+│   │   │   │   ├── table.py
+│   │   │   │   ├── user.py
+│   │   │   │   └── workspace.py
+│   │   │   ├── routes
+│   │   │   │   ├── cells.py
+│   │   │   │   ├── columns.py
+│   │   │   │   ├── documents.py
+│   │   │   │   ├── extraction.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── jobs.py
+│   │   │   │   └── tables.py
+│   │   │   ├── schemas
+│   │   │   │   ├── cell.py
+│   │   │   │   ├── column.py
+│   │   │   │   ├── document.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── job.py
+│   │   │   │   └── table.py
+│   │   │   ├── services
+│   │   │   │   ├── cell_service.py
+│   │   │   │   ├── column_service.py
+│   │   │   │   ├── document_service.py
+│   │   │   │   ├── extraction_service.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── storage_service.py
+│   │   │   │   └── table_service.py
+│   │   │   ├── utils
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── redis_tasks.py
+│   │   │   ├── config.py
+│   │   │   ├── dependencies.py
+│   │   │   ├── __init__.py
+│   │   │   └── main.py
+│   │   ├── tests
+│   │   │   ├── conftest.py
+│   │   │   ├── __init__.py
+│   │   │   ├── test_columns.py
+│   │   │   ├── test_documents.py
+│   │   │   ├── test_extraction.py
+│   │   │   └── test_tables.py
+│   │   ├── alembic.ini
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── document-worker
+│   │   ├── app
+│   │   │   ├── clients
+│   │   │   │   ├── api_client.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── redis_client.py
+│   │   │   │   └── s3_client.py
+│   │   │   ├── embedding
+│   │   │   │   ├── client.py
+│   │   │   │   └── __init__.py
+│   │   │   ├── parsing
+│   │   │   │   ├── chunker.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── parser.py
+│   │   │   ├── config.py
+│   │   │   ├── consumer.py
+│   │   │   ├── handler.py
+│   │   │   ├── __init__.py
+│   │   │   └── main.py
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── extraction-worker
+│   │   ├── app
+│   │   │   ├── clients
+│   │   │   │   ├── api_client.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── redis_client.py
+│   │   │   ├── llm
+│   │   │   │   ├── client.py
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── prompts.py
+│   │   │   │   └── response_parser.py
+│   │   │   ├── rag
+│   │   │   │   ├── __init__.py
+│   │   │   │   └── pipeline.py
+│   │   │   ├── config.py
+│   │   │   ├── consumer.py
+│   │   │   ├── handler.py
+│   │   │   ├── __init__.py
+│   │   │   └── main.py
+│   │   ├── Dockerfile
+│   │   └── pyproject.toml
+│   ├── gateway
+│   │   ├── Dockerfile
+│   │   └── nginx.conf
+│   └── sse-service
+│       ├── Dockerfile
+│       ├── go.mod
+│       └── main.go
+├── docker-compose.yml
+├── .env.example
+├── .gitignore
+├── README.md
+├── structure.txt
+└── Taskfile.yml
+
+45 directories, 150 files
