@@ -1,0 +1,64 @@
+version: '3'
+
+includes:
+  api:
+    taskfile: ./services/api-server/Taskfile.yml
+    dir: ./services/api-server
+  doc:
+    taskfile: ./services/document-worker/Taskfile.yml
+    dir: ./services/document-worker
+  ext:
+    taskfile: ./services/extraction-worker/Taskfile.yml
+    dir: ./services/extraction-worker
+  sse:
+    taskfile: ./services/sse-service/Taskfile.yml
+    dir: ./services/sse-service
+  frontend:
+    taskfile: ./frontend/Taskfile.yml
+    dir: ./frontend
+
+tasks:
+  # === Development (infrastructure only) ===
+  dev:
+    desc: Start infrastructure (postgres, redis, minio)
+    cmds:
+      - docker compose up -d postgres redis minio
+
+  # === Production-like (everything in Docker) ===
+  up:
+    desc: Start everything in Docker
+    cmds:
+      - docker compose --profile app up -d
+
+  down:
+    desc: Stop everything
+    cmds:
+      - docker compose down
+
+  # === Build ===
+  build:
+    desc: Build all Docker images
+    cmds:
+      - docker compose build
+
+  # === Database ===
+  migrate:
+    desc: Run database migrations
+    cmds:
+      - task: api:migrate
+
+  # === Testing ===
+  test:
+    desc: Run all tests
+    cmds:
+      - task: api:test
+      - task: doc:test
+      - task: ext:test
+      - task: sse:test
+      - task: frontend:test
+
+  # === Logs ===
+  logs:
+    desc: Tail logs from Docker services
+    cmds:
+      - docker compose logs -f

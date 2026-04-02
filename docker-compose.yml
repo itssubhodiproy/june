@@ -1,5 +1,5 @@
 services:
-  # --- Infrastructure ---
+  # === Infrastructure (always runs) ===
   postgres:
     image: pgvector/pgvector:pg16
     environment:
@@ -39,56 +39,58 @@ services:
     volumes:
       - minio_data:/data
 
-  # --- Application (uncomment as you build) ---
-  # api-server:
-  #   build: ./services/api-server
-  #   ports:
-  #     - "8000:8000"
-  #   env_file: .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #     minio:
-  #       condition: service_started
+  # === Application (only with --profile app) ===
+  api-server:
+    build: ./services/api-server
+    profiles: [app]
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  # document-worker:
-  #   build: ./services/document-worker
-  #   env_file: .env
-  #   depends_on:
-  #     - redis
-  #     - minio
-  #     - api-server
+  document-worker:
+    build: ./services/document-worker
+    profiles: [app]
+    env_file: .env
+    depends_on:
+      - redis
+      - minio
 
-  # extraction-worker:
-  #   build: ./services/extraction-worker
-  #   env_file: .env
-  #   depends_on:
-  #     - redis
-  #     - api-server
+  extraction-worker:
+    build: ./services/extraction-worker
+    profiles: [app]
+    env_file: .env
+    depends_on:
+      - redis
 
-  # sse-service:
-  #   build: ./services/sse-service
-  #   ports:
-  #     - "8080:8080"
-  #   env_file: .env
-  #   depends_on:
-  #     - redis
+  sse-service:
+    build: ./services/sse-service
+    profiles: [app]
+    ports:
+      - "8080:8080"
+    env_file: .env
+    depends_on:
+      - redis
 
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:80"
+  frontend:
+    build: ./frontend
+    profiles: [app]
+    ports:
+      - "3000:80"
 
-  # gateway:
-  #   build: ./services/gateway
-  #   ports:
-  #     - "80:80"
-  #   depends_on:
-  #     - api-server
-  #     - sse-service
-  #     - frontend
+  gateway:
+    build: ./services/gateway
+    profiles: [app]
+    ports:
+      - "80:80"
+    depends_on:
+      - api-server
+      - sse-service
+      - frontend
 
 volumes:
   postgres_data:

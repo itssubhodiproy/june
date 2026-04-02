@@ -1,0 +1,42 @@
+version: '3'
+
+tasks:
+  # === Development ===
+  dev:
+    desc: Run API server with hot reload
+    cmds:
+      - uvicorn app.main:app --reload --port 8000
+
+  # === Build ===
+  build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t june-api-server .
+
+  # === Database ===
+  migrate:
+    desc: Run migrations
+    cmds:
+      - alembic upgrade head
+
+  migrate:new:
+    desc: Create new migration (usage: task api:migrate:new -- "add users table")
+    cmds:
+      - alembic revision --autogenerate -m "{{.CLI_ARGS}}"
+
+  # === Testing ===
+  test:
+    desc: Run tests
+    cmds:
+      - pytest tests/ -v
+
+  # === Code Quality ===
+  lint:
+    desc: Run linter
+    cmds:
+      - ruff check app/
+
+  format:
+    desc: Format code
+    cmds:
+      - ruff format app/
