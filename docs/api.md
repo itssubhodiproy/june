@@ -1,12 +1,48 @@
-
-
 # API Reference — June Review Table
 
-*Last updated: 2025-07-01 · Status: Active*
+*Last updated: 2025-07-03 · Status: Active*
 
 ---
 
 All endpoints are prefixed with `/api`. All request/response bodies are JSON. All IDs are UUIDs. Timestamps are ISO 8601. Authentication is via session cookie or Bearer token (handled by API Gateway).
+
+---
+
+## Workspaces
+
+### POST /api/workspaces
+
+Create a new workspace. Also creates the `user_workspaces` row with `role: "owner"` for the requesting user.
+
+```
+Request:  { "name": "Acme Legal" }
+Response: {
+  "id": "ws_001",
+  "name": "Acme Legal",
+  "created_at": "2025-07-03T10:00:00Z"
+}
+Status: 201 Created
+```
+
+---
+
+### GET /api/workspaces
+
+List all workspaces the current user is a member of.
+
+```
+Response: {
+  "workspaces": [
+    {
+      "id": "ws_001",
+      "name": "Acme Legal",
+      "role": "owner",
+      "joined_at": "2025-07-03T10:00:00Z"
+    }
+  ]
+}
+Status: 200 OK
+```
 
 ---
 
@@ -395,6 +431,106 @@ Status: 204 No Content
 
 ---
 
+## Templates
+
+### GET /api/templates
+
+List all templates in the current workspace.
+
+```
+Response: {
+  "templates": [
+    {
+      "id": "tpl_001",
+      "name": "NDA Review",
+      "column_count": 6,
+      "created_by": "user_abc",
+      "created_at": "2025-07-03T10:00:00Z"
+    }
+  ]
+}
+Status: 200 OK
+```
+
+---
+
+### POST /api/templates
+
+Save a snapshot of a table's columns as a new template ("Save as template").
+
+```
+Request: {
+  "name": "NDA Review",
+  "table_id": "tbl_abc123"
+}
+Response: {
+  "id": "tpl_001",
+  "name": "NDA Review",
+  "column_count": 6,
+  "created_at": "2025-07-03T10:00:00Z"
+}
+Status: 201 Created
+```
+
+Side effects:
+- Creates one `templates` row.
+- Copies all current `columns` for the given table into `template_columns` (title, prompt, type, order). Pure snapshot — no link back to the source table.
+
+---
+
+### DELETE /api/templates/{template_id}
+
+Delete a template.
+
+```
+Response: { }
+Status: 204 No Content
+```
+
+Backend soft-deletes (sets `deleted_at`). Does not affect any tables or columns.
+
+---
+
+### POST /api/templates/{template_id}/import
+
+Import a template's columns into a table. One call, one transaction.
+
+```
+Request: {
+  "table_id": "tbl_abc123"
+}
+Response: {
+  "columns": [
+    {
+      "id": "col_007",
+      "table_id": "tbl_abc123",
+      "title": "Parties",
+      "prompt": "Who are the parties to this agreement?",
+      "type": "free_response",
+      "order": 4
+    },
+    {
+      "id": "col_008",
+      "table_id": "tbl_abc123",
+      "title": "Governing Law",
+      "prompt": "What is the governing law and jurisdiction?",
+      "type": "free_response",
+      "order": 5
+    }
+  ]
+}
+Status: 201 Created
+```
+
+Side effects:
+- Bulk inserts all `template_columns` as new rows in `columns`, with `order` continuing from the table's current max.
+- Bulk inserts empty `cells` for each new column × every existing document in the table.
+- Imported columns are independent — future edits do not affect the template.
+
+Frontend receives the full column list in the response and merges into Zustand store. No subsequent fetch needed.
+
+---
+
 ## Extraction
 
 ### POST /api/tables/{table_id}/run
@@ -568,7 +704,7 @@ All error responses follow the same shape:
 | Status | Code | When |
 |--------|------|------|
 | 400 | VALIDATION_ERROR | Invalid request body, missing required fields |
-| 404 | NOT_FOUND | Table, document, column, or cell doesn't exist |
+| 404 | NOT_FOUND | Table, document, column, cell, or template doesn't exist |
 | 409 | CONFLICT | Document already associated with this table |
 | 422 | INVALID_COLUMN_TYPE | Column type not in allowed enum |
 | 500 | INTERNAL_ERROR | Unexpected server error |
