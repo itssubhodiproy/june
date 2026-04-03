@@ -4,18 +4,18 @@ includes:
   api:
     taskfile: ./services/api-server/Taskfile.yml
     dir: ./services/api-server
-  doc:
-    taskfile: ./services/document-worker/Taskfile.yml
-    dir: ./services/document-worker
-  ext:
-    taskfile: ./services/extraction-worker/Taskfile.yml
-    dir: ./services/extraction-worker
-  sse:
-    taskfile: ./services/sse-service/Taskfile.yml
-    dir: ./services/sse-service
-  frontend:
-    taskfile: ./frontend/Taskfile.yml
-    dir: ./frontend
+  # doc:
+  #   taskfile: ./services/document-worker/Taskfile.yml
+  #   dir: ./services/document-worker
+  # ext:
+  #   taskfile: ./services/extraction-worker/Taskfile.yml
+  #   dir: ./services/extraction-worker
+  # sse:
+  #   taskfile: ./services/sse-service/Taskfile.yml
+  #   dir: ./services/sse-service
+  # frontend:
+  #   taskfile: ./frontend/Taskfile.yml
+  #   dir: ./frontend
 
 tasks:
   # === Development (infrastructure only) ===
