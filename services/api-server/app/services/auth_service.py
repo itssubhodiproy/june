@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from app.config import settings
 from app.models.user import User
 from app.schemas.auth import UserRegister
+from app.services.workspace_service import WorkspaceService
 
 
 class AuthService:
@@ -42,6 +43,15 @@ class AuthService:
         )
         self.db.add(user)
         try:
+            await self.db.flush()
+
+            workspace_service = WorkspaceService(self.db)
+            await workspace_service._create_workspace(
+                user=user,
+                name="Personal Workspace",
+                is_personal=True,
+            )
+
             await self.db.commit()
         except IntegrityError:
             await self.db.rollback()

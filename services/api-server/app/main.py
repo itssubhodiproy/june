@@ -1,11 +1,12 @@
 from app.models.base import Base
 from app.dependencies import engine
-from app.routes import auth
+from app.routes import auth, workspaces
 from fastapi import FastAPI
 
 app = FastAPI(title="API Server", version="0.1.0")
 
 app.include_router(auth.router)
+app.include_router(workspaces.router)
 
 
 @app.on_event("startup")
