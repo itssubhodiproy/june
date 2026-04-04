@@ -1,11 +1,18 @@
-from app.db import Base, engine
+from app.models.base import Base
+from app.dependencies import engine
+from app.routes import auth
 from fastapi import FastAPI
 
 app = FastAPI(title="API Server", version="0.1.0")
 
+app.include_router(auth.router)
+
+
 @app.on_event("startup")
-def init_db():
-    Base.metadata.create_all(bind=engine)
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
 
 @app.get("/")
 def read_root():
