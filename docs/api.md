@@ -53,7 +53,10 @@ Status: 200 OK
 Create a new review table.
 
 ```
-Request:  { "name": "Review Table #81" }   // optional — auto-generates if omitted
+Request:  {
+  "workspace_id": "ws_001",
+  "name": "Review Table #81"
+}   // name optional — auto-generates if omitted
 Response: {
   "id": "tbl_abc123",
   "workspace_id": "ws_001",
@@ -70,9 +73,10 @@ Name auto-generates as "Review Table #N" based on existing count in workspace.
 
 ### GET /api/tables
 
-List all tables in the current workspace.
+List all tables in a workspace the current user belongs to.
 
 ```
+Query:    ?workspace_id=ws_001
 Response: {
   "tables": [
     {
