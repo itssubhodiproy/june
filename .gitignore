@@ -5,3 +5,5 @@ node_modules
 __pycache__
 *.db
 /tmp/*
+*.agents
+skills-lock.json

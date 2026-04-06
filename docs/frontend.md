@@ -12,17 +12,20 @@ Single-page application. Renders the review table, memory drawer, and document v
 
 ## Tech Stack
 
-- **Framework:** React 18 + TypeScript
+- **Framework:** React 19 + TypeScript
+- **Routing:** React Router
 - **Build:** Vite
 - **Package Manager:** pnpm
 - **State:** Zustand
 - **Table:** TanStack Table (headless, virtualized)
-- **UI Components:** shadcn/ui (customized with June design system)
+- **UI Components:** shadcn/ui using the existing frontend theme tokens and component styles already defined in the repo
 - **PDF Viewer:** react-pdf (pdf.js wrapper)
 - **SSE Client:** Native browser `EventSource` API
 - **HTTP Client:** Native `fetch` (no axios — unnecessary dependency)
 - **Styling:** Tailwind CSS v4 (via shadcn)
 - **Fonts:** EB Garamond (serif headings), Inter (sans body)
+
+No new design system. The frontend should use the theme tokens, typography, spacing, and shadcn setup already present in the repo.
 
 ## Folder Structure
 
@@ -72,9 +75,8 @@ frontend/
     │       └── save-indicator.tsx  ← "Saved" / "Saving..." subtle text
     │
     ├── stores/
-    │   ├── table-store.ts          ← Table metadata, documents, columns, cells
-    │   ├── ui-store.ts             ← Layout state, selected row/column, viewer state
-    │   └── upload-store.ts         ← Upload queue, progress, concurrency management
+    │   ├── table-store.ts          ← Normalized table data only
+    │   └── ui-store.ts             ← Selection, viewer state, modal state
     │
     ├── api/
     │   ├── client.ts               ← Base fetch wrapper (auth headers, error handling)
@@ -82,12 +84,11 @@ frontend/
     │   ├── documents.ts            ← Upload URL, confirm, file URL, chunks
     │   ├── columns.ts              ← Column CRUD calls
     │   ├── extraction.ts           ← Run, rerun calls
-    │   └── jobs.ts                 ← Job status calls
     │
     ├── hooks/
     │   ├── use-sse.ts              ← SSE connection lifecycle + event routing
-    │   ├── use-table.ts            ← Load table data, combines store + API
-    │   └── use-upload.ts           ← Upload orchestration with concurrency control
+    │   ├── use-table.ts            ← Load table data, route-bound orchestration
+    │   └── use-upload.ts           ← Page-scoped upload orchestration with concurrency control
     │
     ├── types/
     │   ├── api.ts                  ← API request/response types
@@ -109,6 +110,7 @@ frontend/
 │   └── <CreateTableButton>
 │
 └── <TablePage>                         ← /tables/:id (hero page)
+    │   owns route params, initial hydrate, SSE, and mutations
     │
     ├── <TableHeader>
     │   ├── <TableTitle>                ← Editable inline, auto-save on blur
@@ -123,14 +125,14 @@ frontend/
     │       ├── <DocumentCell>          ← File name, faded/solid
     │       └── <DataCell>              ← Per column: answer or state
     │
-    ├── <MemoryDrawer>                  ← Conditional: ui.layout !== "table_only"
+    ├── <MemoryDrawer>                  ← Conditional: selectedRow !== null
     │   ├── <DrawerHeader>              ← Document name, close button
     │   └── <ColumnSection>             ← Per column, accordion
     │       ├── <Answer>
     │       ├── <Reasoning>
     │       └── <SourceChip>            ← Clickable → opens viewer
     │
-    ├── <DocumentViewer>                ← Conditional: ui.layout === "drawer_and_viewer"
+    ├── <DocumentViewer>                ← Conditional: viewerDocumentId !== null
     │   ├── <ViewerHeader>              ← File name, page N/M, close
     │   ├── <PDFRenderer>               ← react-pdf canvas
     │   │   └── <HighlightOverlay>      ← Absolutely positioned divs on cited text
@@ -140,9 +142,13 @@ frontend/
     └── <DeleteDialog>                  ← Modal: confirm destructive actions
 ```
 
+`TablePage` is the orchestration boundary. It owns route params, initial hydration, SSE setup, and mutation hooks. Child components should stay mostly presentational and receive plain data plus event handlers.
+
 ## State Management
 
-Three Zustand stores. Separated by concern and update frequency.
+Two Zustand stores. Separated by concern and update frequency.
+
+Rule: stores hold app state and synchronous mutations. Network requests live in `api/*` and orchestration hooks. Avoid hiding async side effects inside Zustand actions.
 
 ### table-store.ts — Data
 
@@ -202,17 +208,18 @@ interface TableStore {
   saveStatus: "saved" | "saving" | "error"
 
   // Actions
-  loadTable: (tableId: string) => Promise<void>
-  renameTable: (name: string) => Promise<void>
+  hydrateTable: (payload: TablePayload) => void
+  renameTableOptimistic: (name: string) => void
   addDocument: (doc: Document) => void
   updateDocumentStatus: (docId: string, status: string, pageCount?: number) => void
-  addColumn: (column: Column) => Promise<void>
-  updateColumn: (colId: string, updates: Partial<Column>) => Promise<void>
-  deleteColumn: (colId: string) => Promise<void>
-  deleteDocument: (docId: string) => Promise<void>
+  addColumn: (column: Column) => void
+  updateColumn: (colId: string, updates: Partial<Column>) => void
+  deleteColumn: (colId: string) => void
+  deleteDocument: (docId: string) => void
   updateCell: (docId: string, colId: string, cellData: CellData) => void
   setCellsExtracting: (cellKeys: string[]) => void
   markColumnStale: (colId: string) => void
+  setSaveStatus: (status: "saved" | "saving" | "error") => void
 }
 ```
 
@@ -220,13 +227,12 @@ interface TableStore {
 
 **Why ordered maps:** `documents.order` and `columns.order` are arrays of IDs that define display order. `byId` is a record for O(1) lookup by ID. This lets us reorder (V1.1) by swapping array elements without touching the data records.
 
+**Derived data over duplicate state:** drawer rows, run eligibility, completed counts, and presentational row models should be derived with selectors from the normalized store, not stored separately.
+
 ### ui-store.ts — View State
 
 ```typescript
 interface UIStore {
-  // Layout state machine
-  layout: "table_only" | "table_and_drawer" | "drawer_and_viewer"
-
   // Selection
   selectedRow: string | null       // document_id
   selectedColumn: string | null    // column_id
@@ -240,9 +246,9 @@ interface UIStore {
     quote: string
   } | null
 
-  // Run status
-  runStatus: "idle" | "running" | "completed"
-  runProgress: { completed: number; total: number } | null
+  // Dialog state
+  isColumnFormOpen: boolean
+  isDeleteDialogOpen: boolean
 
   // Actions
   selectCell: (docId: string, colId: string) => void
@@ -252,32 +258,40 @@ interface UIStore {
 }
 ```
 
+**Derived layout:**
+
+```
+layout =
+  selectedRow === null
+    ? "table_only"
+    : viewerDocumentId === null
+      ? "table_and_drawer"
+      : "drawer_and_viewer"
+```
+
 **State transitions:**
 
 ```
 selectCell(docId, colId):
-  if layout === "table_only" → set layout to "table_and_drawer"
-  if layout === "table_and_drawer" → stay (update selected row/col)
-  if layout === "drawer_and_viewer" → close viewer, stay in "table_and_drawer"
   set selectedRow = docId, selectedColumn = colId
+  if viewerDocumentId !== null and viewerDocumentId !== docId:
+    clear viewer state
 
 openViewer(docId, chunkId, page, quote):
-  set layout to "drawer_and_viewer"
   set viewerDocumentId, viewerPage, viewerHighlight
 
 closeViewer():
-  set layout to "table_and_drawer"
   clear viewer state
 
 closeDrawer():
-  set layout to "table_only"
   clear selectedRow, selectedColumn
+  clear viewer state
 ```
 
-### upload-store.ts — Upload Queue
+### use-upload.ts — Page-Scoped Upload Queue
 
 ```typescript
-interface UploadStore {
+interface UploadController {
   // Queue
   pendingFiles: File[]
   activeUploads: Map<string, {
@@ -306,60 +320,110 @@ Upload flow per file:
 
 Max 5 concurrent uploads. Files beyond 5 wait in `pendingFiles`.
 
+Upload progress is ephemeral page state, not global app state. Keep it inside `useUpload` unless a later requirement forces cross-route persistence.
+
+## Optimistic Updates
+
+Every user-facing mutation is optimistic. The UI updates immediately, the API call fires in the background, and SSE events reconcile the final state.
+
+**What is optimistic:**
+
+| Action | Optimistic Update | Revert on Error |
+|--------|-------------------|-----------------|
+| Rename table | Update store immediately | Restore previous name |
+| Upload document | Row appears faded at step 1 (upload-url response) | Remove row |
+| Delete document | Remove row immediately | Restore row + cells |
+| Add column | Column appears, empty cells created immediately | Remove column + cells |
+| Edit column | Title/prompt update, cells go stale immediately | Restore column + un-stale cells |
+| Delete column | Column + all cells removed immediately | Restore column + cells |
+| Global Run | All empty/stale cells → `extracting` immediately | Revert cells to prior status |
+| Column re-run | All cells in column → `extracting` immediately | Revert cells to prior status |
+| Cell re-run | Single cell → `extracting` immediately | Revert cell to prior status |
+| Template import | Columns appear, empty cells created | Remove imported columns |
+
+**Revert pattern:** Snapshot affected store slices before mutation. On API error, restore. On success, discard — SSE delivers authoritative state anyway.
+
+```typescript
+// Example: delete column
+function deleteColumn(colId: string) {
+  const previous = {
+    column: columns.byId[colId],
+    cells: Object.fromEntries(
+      Object.entries(cells).filter(([key]) => key.includes(`::${colId}`))
+    ),
+  }
+
+  tableStore.deleteColumn(colId) // optimistic
+
+  api.deleteColumn(table.id, colId).catch(() => {
+    tableStore.addColumn(previous.column)
+    Object.entries(previous.cells).forEach(([key, cell]) => {
+      const [docId, cid] = key.split("::")
+      tableStore.updateCell(docId, cid, cell)
+    })
+  })
+}
+```
+
+**SSE as reconciler:** Optimistic cell states (`extracting`) are overwritten by `cell_completed` SSE events. No double-update logic needed — the SSE payload is the source of truth. Revert only on network/API errors, never on SSE timing.
+
+**Save indicator:** Shows "Saving..." during the window between optimistic update and API confirmation. Transitions to "Saved" on success or "Error" on failure.
+
 ## SSE Hook
 
 ```typescript
 // hooks/use-sse.ts
 
 function useSSE(tableId: string) {
+  const onDocReady = React.useEffectEvent((data: DocReadyEvent) => {
+    tableStore.getState().updateDocumentStatus(data.document_id, "ready", data.page_count)
+  })
+
+  const onDocError = React.useEffectEvent((data: DocErrorEvent) => {
+    tableStore.getState().updateDocumentStatus(data.document_id, "error")
+  })
+
+  const onCellCompleted = React.useEffectEvent((data: CellCompletedEvent) => {
+    tableStore.getState().updateCell(data.document_id, data.column_id, {
+      id: data.cell_id,
+      status: "completed",
+      answer: data.answer,
+      reasoning: data.reasoning,
+      source_references: data.source_references,
+    })
+  })
+
+  const onCellError = React.useEffectEvent((data: CellErrorEvent) => {
+    tableStore.getState().updateCell(data.document_id, data.column_id, {
+      id: data.cell_id,
+      status: "error",
+      error_message: data.error,
+    })
+  })
+
   useEffect(() => {
     const source = new EventSource(`/api/tables/${tableId}/events`)
 
-    source.addEventListener("doc_ready", (e) => {
-      const data = JSON.parse(e.data)
-      tableStore.updateDocumentStatus(data.document_id, "ready", data.page_count)
-    })
+    source.addEventListener("doc_ready", onDocReady)
+    source.addEventListener("doc_error", onDocError)
+    source.addEventListener("cell_completed", onCellCompleted)
+    source.addEventListener("cell_error", onCellError)
 
-    source.addEventListener("doc_error", (e) => {
-      const data = JSON.parse(e.data)
-      tableStore.updateDocumentStatus(data.document_id, "error")
-    })
-
-    source.addEventListener("cell_completed", (e) => {
-      const data = JSON.parse(e.data)
-      tableStore.updateCell(data.document_id, data.column_id, {
-        id: data.cell_id,
-        status: "completed",
-        answer: data.answer,
-        reasoning: data.reasoning,
-        source_references: data.source_references,
-      })
-    })
-
-    source.addEventListener("cell_error", (e) => {
-      const data = JSON.parse(e.data)
-      tableStore.updateCell(data.document_id, data.column_id, {
-        id: data.cell_id,
-        status: "error",
-        error_message: data.error,
-      })
-    })
-
-    source.addEventListener("run_completed", (e) => {
-      const data = JSON.parse(e.data)
-      uiStore.setRunStatus("completed", data)
-    })
+    source.onerror = () => {
+      // EventSource auto-reconnects. On reconnect, hydrate to catch missed events.
+      api.getTable(tableId).then((payload) => tableStore.hydrateTable(payload))
+    }
 
     return () => source.close()
   }, [tableId])
 }
 ```
 
-`EventSource` auto-reconnects on connection drop. On reconnect, the frontend should call `GET /api/tables/{id}` to hydrate any events missed during downtime.
+`useEffectEvent` (React 19) gives event handlers fresh store access without re-subscribing the `EventSource` on every render. The effect dependency array stays `[tableId]` — stable, no churn.
 
 ## Layout System
 
-CSS Grid with conditional templates controlled by `ui.layout`:
+CSS Grid with conditional templates controlled by derived layout state:
 
 ```
 table_only:
@@ -382,7 +446,9 @@ grid-template-columns: 320px 1fr
 Table is hidden (display: none on the grid item)
 ```
 
-Transitions: `transition: grid-template-columns 300ms ease-out` for smooth resizing. Drawer slides in from right. Viewer slides in from right while table slides out.
+Transitions should stay simple: animate `transform` and `opacity`, not layout-heavy properties where avoidable. Honor `prefers-reduced-motion`. Do not use `transition: all`.
+
+React View Transitions are not part of the V1 plan. The app only needs simple panel and content transitions, and native CSS transitions are the lower-risk choice for this Vite SPA.
 
 ## Document Viewer — Bounding Box Highlighting
 
@@ -418,22 +484,44 @@ When user clicks a source chip:
 
 PDF blobs are cached in a `Map<string, Blob>` in memory. Clicking a source from the same document reuses the cached blob — instant page navigation. Clicking a source from a different document fetches a new blob.
 
+## Performance Notes
+
+- Virtualize table rows from the start.
+- Use `content-visibility: auto` on heavy off-screen drawer/viewer sections where it helps and does not interfere with measurement.
+- Keep selectors narrow so table cells do not all re-render on unrelated updates.
+- Use `startTransition` for non-urgent UI updates triggered by high-frequency interactions.
+- Use `useDeferredValue` only if search/filtering or other expensive derived renders are introduced.
+- **Lazy-load DocumentViewer.** `react-pdf` + pdf.js worker is ~300KB. Use `React.lazy()` — only needed when a user clicks a source chip, never on initial page load.
+- **No barrel imports.** Import directly from file paths (`import { getTable } from "@/api/tables"`), not index re-exports (`import { getTable } from "@/api"`). Prevents unnecessary bundle inclusion.
+
+## Accessibility & Interaction Rules
+
+- Icon-only buttons must have `aria-label`.
+- Async status updates like save state and upload state should announce through `aria-live="polite"` where appropriate.
+- Dialogs, drawers, and the document viewer must support keyboard dismissal and sensible focus management.
+- Drawer and viewer containers should use `overscroll-behavior: contain`.
+- Long document names, answers, and quotes must truncate or wrap intentionally.
+- Numeric columns should use tabular numerals for scanability.
+- If V1.1 adds filters, sort, or search, sync them to the URL instead of keeping them as local-only UI state.
+
 ## Design System
 
-Theme applied via shadcn CSS variables in `globals.css`. Full theme definition is in the codebase — key mappings:
+Theme applied via shadcn CSS variables in `index.css`. The project uses the shadcn `radix-luma` preset with `neutral` base color and HugeIcons as the icon library.
 
 | Design Token | Tailwind Class | Value |
 |-------------|----------------|-------|
-| Text primary (#1a1a1a) | `text-foreground` | oklch(0.145 0 0) |
-| Text muted (#999999) | `text-muted-foreground` | oklch(0.645 0 0) |
-| Background (#faf9f7) | `bg-background` | oklch(0.98 0.003 90) |
-| Card surface (#ffffff) | `bg-card` | oklch(1 0 0) |
-| Primary action (#000000) | `bg-primary` | oklch(0 0 0) |
-| Subtle surface (#f5f3f0) | `bg-secondary` | oklch(0.96 0.003 90) |
-| Border (rgba(0,0,0,0.08)) | `border-border` | oklch(0.922 0.003 90) |
-| Radius base (12px) | `rounded-lg` | --radius: 0.75rem |
+| Text primary | `text-foreground` | oklch(0.145 0 0) |
+| Text muted | `text-muted-foreground` | oklch(0.556 0 0) |
+| Background | `bg-background` | oklch(1 0 0) |
+| Card surface | `bg-card` | oklch(1 0 0) |
+| Primary action | `bg-primary` | oklch(0.205 0 0) |
+| Subtle surface | `bg-secondary` | oklch(0.97 0 0) |
+| Border | `border-border` | oklch(0.922 0 0) |
+| Radius base | `rounded-lg` | --radius: 0.45rem |
 
-**Font usage:** `font-serif` (EB Garamond) for table title and drawer document name. `font-sans` (Inter) for everything else.
+**Font usage:** EB Garamond (`font-serif`) for table title and Memory Drawer document name only. Inter Variable (`font-sans`) for everything else — table body, cells, forms, UI. Serif headings signal "document tool" without sacrificing scanability in dense data areas.
+
+**Icon library:** HugeIcons (`@hugeicons/react`). Icons in buttons use `data-icon="inline-start"` or `data-icon="inline-end"`. Icon sizing is handled by the component — no `size-*` classes needed.
 
 **Cell state styling:**
 
@@ -454,6 +542,29 @@ Theme applied via shadcn CSS variables in `globals.css`. Full theme definition i
 | `error` | `opacity-40` + `⚠️` icon — faded, pulse stops, warning on hover |
 
 Transition from not_ready to ready: `transition: opacity 500ms ease-in`. No jarring pop. The row gently materializes.
+
+## shadcn Components
+
+Already installed: `button`, `theme-provider` (custom)
+
+Components to install as needed during implementation:
+
+| Component | Used By | Why |
+|-----------|---------|-----|
+| `sheet` | Memory Drawer | Side panel with focus management, keyboard dismissal |
+| `dialog` | Column Form, Delete Dialog | Modal overlays |
+| `badge` | Column type badges, stale/outdated labels | Semantic status display |
+| `skeleton` | Cell shimmer, loading states | Loading placeholders |
+| `dropdown-menu` | Column header actions menu | Edit/delete per column |
+| `tooltip` | Icon-only button labels | Accessibility |
+| `separator` | Drawer section dividers | Visual separation |
+| `scroll-area` | Drawer content, table container | Custom scrollbars |
+| `input` | Column form, table rename | Text inputs |
+| `textarea` | Column prompt field | Multi-line input |
+| `select` | Column type picker | Dropdown selection |
+| `accordion` | Drawer column sections | Expandable column content |
+| `sonner` | Toast notifications | Upload/error feedback |
+| `label` | Form labels | Accessible form labels |
 
 ## Keyboard Shortcuts
 
