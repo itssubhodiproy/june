@@ -25,6 +25,26 @@ Single-page application. Renders the review table, memory drawer, and document v
 - **Styling:** Tailwind CSS v4 (via shadcn)
 - **Fonts:** EB Garamond (serif headings), Inter (sans body)
 
+## Routing
+
+```
+/                        → LandingPage (public)
+/login                   → LoginPage (public, redirects to /app/tables if authenticated)
+/app                     → AppLayout (protected, auth guard)
+/app/tables              → TablesPage (table list)
+/app/tables/:tableId     → TablePage (single table workspace)
+```
+
+**Auth flow:**
+
+- `main.tsx` calls `checkAuth()` on app load — validates token via `GET /api/auth/me`, populates user state.
+- `AuthGuard` wraps all `/app/*` routes — redirects to `/login` if not authenticated.
+- `LoginPage` calls `login()` — stores JWT in `localStorage`, updates Zustand store, navigates to `/app/tables`.
+- `AppLayout` shows user email + sign out button — sign out clears token and Zustand store.
+- Landing page CTA checks token presence — shows "Go to App" or "Sign In" based on `isAuthenticated`.
+
+**Dev proxy:** Vite proxies `/api/*` to `localhost:8000` (API server). In production, Nginx handles routing.
+
 No new design system. The frontend should use the theme tokens, typography, spacing, and shadcn setup already present in the repo.
 
 ## Folder Structure
@@ -39,15 +59,20 @@ frontend/
 ├── index.html
 ├── public/
 └── src/
-    ├── main.tsx                    ← React root, providers
-    ├── App.tsx                     ← Router setup
+    ├── main.tsx                    ← React root, auth check, router provider
+    ├── App.tsx                     ← Re-exports router
+    ├── router.tsx                 ← Router config with routes and auth guard
     │
     ├── pages/
-    │   ├── login.tsx               ← Sign in page
-    │   ├── tables.tsx              ← Table list (home)
-    │   └── table.tsx               ← Single table workspace (hero page)
+    │   ├── landing.tsx             ← Landing page (public)
+    │   ├── login.tsx               ← Sign in page (public)
+    │   └── app/
+    │       ├── layout.tsx          ← App shell with nav, auth-protected
+    │       ├── tables.tsx          ← Table list
+    │       └── table.tsx           ← Single table workspace (hero page)
     │
     ├── components/
+    │   ├── auth-guard.tsx         ← Auth redirect wrapper
     │   ├── ui/                     ← shadcn components (button, input, dialog, etc.)
     │   │
     │   ├── table/
@@ -75,10 +100,12 @@ frontend/
     │       └── save-indicator.tsx  ← "Saved" / "Saving..." subtle text
     │
     ├── stores/
+    │   ├── auth-store.ts          ← Auth state: user, token, login/logout/checkAuth
     │   ├── table-store.ts          ← Normalized table data only
     │   └── ui-store.ts             ← Selection, viewer state, modal state
     │
     ├── api/
+    │   ├── auth.ts                ← Login, register, getMe, token localStorage
     │   ├── client.ts               ← Base fetch wrapper (auth headers, error handling)
     │   ├── tables.ts               ← Table CRUD calls
     │   ├── documents.ts            ← Upload URL, confirm, file URL, chunks
@@ -86,6 +113,7 @@ frontend/
     │   ├── extraction.ts           ← Run, rerun calls
     │
     ├── hooks/
+    │   ├── use-auth.ts            ← Convenience wrapper around auth-store
     │   ├── use-sse.ts              ← SSE connection lifecycle + event routing
     │   ├── use-table.ts            ← Load table data, route-bound orchestration
     │   └── use-upload.ts           ← Page-scoped upload orchestration with concurrency control
@@ -104,42 +132,50 @@ frontend/
 
 ```
 <App>
-├── <LoginPage>                         ← /login
-├── <TablesPage>                        ← / (table list)
-│   ├── <TableCard>                     ← Each table in list
-│   └── <CreateTableButton>
-│
-└── <TablePage>                         ← /tables/:id (hero page)
-    │   owns route params, initial hydrate, SSE, and mutations
-    │
-    ├── <TableHeader>
-    │   ├── <TableTitle>                ← Editable inline, auto-save on blur
-    │   ├── <UploadButton>              ← File picker, multi-select
-    │   ├── <AddColumnButton>           ← Opens <ColumnForm>
-    │   ├── <RunButton>                 ← Disabled when nothing to run
-    │   └── <SaveIndicator>
-    │
-    ├── <TableGrid>                     ← TanStack Table
-    │   ├── <ColumnHeader>              ← Per column: title, type, menu
-    │   └── <TableRow>                  ← Per document (virtualized)
-    │       ├── <DocumentCell>          ← File name, faded/solid
-    │       └── <DataCell>              ← Per column: answer or state
-    │
-    ├── <MemoryDrawer>                  ← Conditional: selectedRow !== null
-    │   ├── <DrawerHeader>              ← Document name, close button
-    │   └── <ColumnSection>             ← Per column, accordion
-    │       ├── <Answer>
-    │       ├── <Reasoning>
-    │       └── <SourceChip>            ← Clickable → opens viewer
-    │
-    ├── <DocumentViewer>                ← Conditional: viewerDocumentId !== null
-    │   ├── <ViewerHeader>              ← File name, page N/M, close
-    │   ├── <PDFRenderer>               ← react-pdf canvas
-    │   │   └── <HighlightOverlay>      ← Absolutely positioned divs on cited text
-    │   └── <PageNavigation>            ← Prev / Next
-    │
-    ├── <ColumnForm>                    ← Modal: add or edit column
-    └── <DeleteDialog>                  ← Modal: confirm destructive actions
+│   └── <RouterProvider>
+│       ├── <LandingPage>                 ← / (public)
+│       ├── <LoginPage>                   ← /login (public)
+│       └── <AuthGuard>                   ← /app/* (protected, from components/)
+│           └── <AppLayout>
+│               ├── <header>
+│               │   ├── <Link to="/app/tables">
+│               │   ├── <user email>
+│               │   └── <Sign out button>
+│               └── <Outlet>
+│                   ├── <TablesPage>      ← /app/tables
+│                   │   ├── <TableCard>   ← Each table in list
+│                   │   └── <CreateTableButton>
+│                   └── <TablePage>       ← /app/tables/:tableId
+│                       │   owns route params, initial hydrate, SSE, and mutations
+│                       │
+│                       ├── <TableHeader>
+│                       │   ├── <TableTitle>              ← Editable inline, auto-save on blur
+│                       │   ├── <UploadButton>             ← File picker, multi-select
+│                       │   ├── <AddColumnButton>          ← Opens <ColumnForm>
+│                       │   ├── <RunButton>                ← Disabled when nothing to run
+│                       │   └── <SaveIndicator>
+│                       │
+│                       ├── <TableGrid>                    ← TanStack Table
+│                       │   ├── <ColumnHeader>            ← Per column: title, type, menu
+│                       │   └── <TableRow>                 ← Per document (virtualized)
+│                       │       ├── <DocumentCell>         ← File name, faded/solid
+│                       │       └── <DataCell>             ← Per column: answer or state
+│                       │
+│                       ├── <MemoryDrawer>                ← Conditional: selectedRow !== null
+│                       │   ├── <DrawerHeader>             ← Document name, close button
+│                       │   └── <ColumnSection>           ← Per column, accordion
+│                       │       ├── <Answer>
+│                       │       ├── <Reasoning>
+│                       │       └── <SourceChip>          ← Clickable → opens viewer
+│                       │
+│                       ├── <DocumentViewer>              ← Conditional: viewerDocumentId !== null
+│                       │   ├── <ViewerHeader>            ← File name, page N/M, close
+│                       │   ├── <PDFRenderer>             ← react-pdf canvas
+│                       │   │   └── <HighlightOverlay>    ← Absolutely positioned divs on cited text
+│                       │   └── <PageNavigation>          ← Prev / Next
+│                       │
+│                       ├── <ColumnForm>                   ← Modal: add or edit column
+│                       └── <DeleteDialog>                 ← Modal: confirm destructive actions
 ```
 
 `TablePage` is the orchestration boundary. It owns route params, initial hydration, SSE setup, and mutation hooks. Child components should stay mostly presentational and receive plain data plus event handlers.

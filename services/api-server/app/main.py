@@ -6,9 +6,9 @@ from fastapi import FastAPI
 
 app = FastAPI(title="API Server", version="0.1.0")
 
-app.include_router(auth.router)
-app.include_router(tables.router)
-app.include_router(workspaces.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(tables.router, prefix="/api")
+app.include_router(workspaces.router, prefix="/api")
 
 
 @app.on_event("startup")

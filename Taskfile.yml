@@ -16,9 +16,9 @@ includes:
   # sse:
   #   taskfile: ./services/sse-service/Taskfile.yml
   #   dir: ./services/sse-service
-  # frontend:
-  #   taskfile: ./frontend/Taskfile.yml
-  #   dir: ./frontend
+  frontend:
+    taskfile: ./frontend/Taskfile.yml
+    dir: ./frontend
 
 tasks:
   # === Development (infrastructure only) ===

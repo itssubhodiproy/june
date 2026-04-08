@@ -1,0 +1,3030 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>June — Contract Intelligence</title>
+  <link rel="icon" type="image/svg+xml" href="../public/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap"
+    rel="stylesheet">
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: oklch(1 0 0);
+      --fg: oklch(0.145 0 0);
+      --muted: oklch(0.975 0 0);
+      --muted-fg: oklch(0.556 0 0);
+      --border: oklch(0.915 0 0);
+      --primary: oklch(0.205 0 0);
+      --primary-fg: oklch(1 0 0);
+      --card: oklch(1 0 0);
+      --destructive: oklch(0.577 0.245 27.3);
+      --radius: 0.5rem;
+      --sidebar-w: 52px;
+      --sidebar-expanded-w: 210px;
+      --topbar-h: 48px;
+      --font: 'Inter', system-ui, -apple-system, sans-serif;
+      --accent-active: oklch(0.94 0 0);
+      --cell-empty: oklch(0.965 0 0);
+      --green-soft: oklch(0.94 0.04 150);
+      --green-fg: oklch(0.45 0.12 150);
+      --red-soft: oklch(0.96 0.04 25);
+      --red-fg: oklch(0.5 0.08 25);
+      --blue-soft: oklch(0.95 0.03 250);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.1);
+      --shadow-xl: 0 16px 50px rgba(0, 0, 0, 0.14);
+    }
+
+    html,
+    body {
+      height: 100%;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.5;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── SCREENS ── */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: none;
+      opacity: 0;
+    }
+
+    .screen.active {
+      display: flex;
+      opacity: 1;
+      animation: screenIn 300ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes screenIn {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .app-shell {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-width: var(--sidebar-w);
+      height: 100%;
+      background: var(--muted);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: width 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94), min-width 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    .sidebar.expanded {
+      width: var(--sidebar-expanded-w);
+      min-width: var(--sidebar-expanded-w);
+    }
+
+    .sidebar-logo {
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--border);
+      gap: 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 120ms;
+    }
+
+    .sidebar-logo:hover {
+      background: oklch(0.96 0 0);
+    }
+
+    .sidebar-logo .logo-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sidebar-logo .logo-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .sidebar-logo .logo-text {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 160ms 60ms, transform 160ms 60ms;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar.expanded .logo-text {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px;
+      height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 100ms, color 100ms;
+      user-select: none;
+      position: relative;
+      white-space: nowrap;
+      overflow: hidden;
+      color: var(--muted-fg);
+    }
+
+    .nav-item:hover:not(.disabled):not(.active) {
+      background: oklch(0.95 0 0);
+      color: var(--fg);
+    }
+
+    .nav-item.active {
+      background: var(--bg);
+      color: var(--fg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .nav-item.disabled {
+      cursor: default;
+      opacity: 0.35;
+    }
+
+    .nav-item .nav-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .nav-item .nav-label {
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 160ms 60ms, transform 160ms 60ms;
+      white-space: nowrap;
+    }
+
+    .nav-item .coming-soon {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--muted-fg);
+      background: var(--border);
+      padding: 1px 6px;
+      border-radius: 4px;
+      opacity: 0;
+      transform: translateX(-4px);
+      transition: opacity 160ms 80ms, transform 160ms 80ms;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .sidebar.expanded .nav-label {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .sidebar.expanded .coming-soon {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .sidebar-bottom {
+      padding: 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      height: var(--topbar-h);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      flex-shrink: 0;
+      background: var(--bg);
+    }
+
+    .topbar-title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-spacer {
+      flex: 1;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: 30px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      cursor: pointer;
+      transition: all 120ms;
+      white-space: nowrap;
+      font-family: var(--font);
+      letter-spacing: -0.005em;
+    }
+
+    .btn:hover {
+      background: var(--muted);
+      border-color: oklch(0.85 0 0);
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary);
+    }
+
+    .btn-primary:hover {
+      background: oklch(0.28 0 0);
+      border-color: oklch(0.28 0 0);
+    }
+
+    .btn-ghost {
+      border-color: transparent;
+    }
+
+    .btn-ghost:hover {
+      background: var(--muted);
+      border-color: transparent;
+    }
+
+    .btn-sm {
+      height: 28px;
+      padding: 0 10px;
+      font-size: 11.5px;
+    }
+
+    .btn-destructive {
+      background: oklch(0.52 0.2 27);
+      color: white;
+      border-color: transparent;
+    }
+
+    .btn-destructive:hover {
+      background: oklch(0.45 0.2 27);
+    }
+
+    svg.icon {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    svg.icon-sm {
+      width: 13px;
+      height: 13px;
+    }
+
+    svg.icon-xs {
+      width: 11px;
+      height: 11px;
+    }
+
+    /* ══════════════════════════════════════════
+     LOGIN
+  ══════════════════════════════════════════ */
+    #screen-login {
+      background: var(--bg);
+    }
+
+    .login-cover {
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(165deg, oklch(0.18 0.01 260) 0%, oklch(0.10 0.005 240) 40%, oklch(0.06 0 0) 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 40px 48px;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .login-cover::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 600px 500px at 15% 85%, oklch(0.22 0.025 270 / 0.5), transparent),
+        radial-gradient(ellipse 400px 400px at 80% 10%, oklch(0.18 0.015 220 / 0.4), transparent),
+        radial-gradient(ellipse 300px 300px at 50% 50%, oklch(0.14 0.01 200 / 0.3), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .login-cover-grid {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .login-cover-grid line {
+      stroke: rgba(255, 255, 255, 0.03);
+      stroke-width: 0.5;
+    }
+
+    .login-cover-logo {
+      font-size: 15px;
+      font-weight: 600;
+      color: white;
+      letter-spacing: -0.02em;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .login-cover-logo-img {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      object-fit: cover;
+    }
+
+    .login-cover-bottom {
+      margin-top: auto;
+      position: relative;
+      z-index: 1;
+    }
+
+    .login-cover-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.2);
+      letter-spacing: 0.14em;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+    }
+
+    .login-cover-tagline {
+      font-size: 22px;
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.45);
+      line-height: 1.45;
+      letter-spacing: -0.01em;
+    }
+
+    .login-cover-tagline strong {
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    .login-cover-features {
+      display: flex;
+      gap: 24px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .login-cover-feature {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.3);
+      font-weight: 400;
+    }
+
+    .login-cover-feature svg {
+      opacity: 0.4;
+    }
+
+    .login-form-side {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg);
+    }
+
+    .login-form-box {
+      width: 340px;
+    }
+
+    .login-form-box h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+    }
+
+    .login-form-box p {
+      font-size: 13px;
+      color: var(--muted-fg);
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: var(--fg);
+    }
+
+    .field input {
+      width: 100%;
+      height: 36px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--fg);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+
+    .field input:focus {
+      border-color: oklch(0.45 0 0);
+      box-shadow: 0 0 0 3px oklch(0.45 0 0 / 0.08);
+    }
+
+    .field input::placeholder {
+      color: oklch(0.72 0 0);
+    }
+
+    .login-btn {
+      width: 100%;
+      height: 36px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 7px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: background 120ms, transform 80ms;
+      letter-spacing: -0.005em;
+    }
+
+    .login-btn:hover {
+      background: oklch(0.28 0 0);
+    }
+
+    .login-btn:active {
+      transform: scale(0.99);
+    }
+
+    .login-note {
+      font-size: 11px;
+      color: oklch(0.72 0 0);
+      text-align: center;
+      margin-top: 24px;
+    }
+
+    /* ══════════════════════════════════════════
+     LANDING
+  ══════════════════════════════════════════ */
+    #screen-landing {
+      background: var(--bg);
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .landing-nav {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      padding: 0 32px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      background: oklch(1 0 0 / 0.85);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .landing-nav-logo {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .landing-nav-logo img {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+    }
+
+    .landing-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 32px 60px;
+      text-align: center;
+      min-height: calc(100vh - 56px);
+    }
+
+    .landing-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted-fg);
+      background: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+
+    .landing-hero h1 {
+      font-size: 44px;
+      font-weight: 600;
+      letter-spacing: -0.035em;
+      line-height: 1.12;
+      max-width: 600px;
+      margin-bottom: 16px;
+    }
+
+    .landing-hero p {
+      font-size: 15px;
+      color: var(--muted-fg);
+      max-width: 460px;
+      line-height: 1.6;
+      margin-bottom: 32px;
+      font-weight: 400;
+    }
+
+    .landing-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 24px;
+      height: 40px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: var(--font);
+      transition: all 150ms;
+      letter-spacing: -0.005em;
+    }
+
+    .landing-cta:hover {
+      background: oklch(0.28 0 0);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .landing-preview {
+      margin-top: 48px;
+      width: 100%;
+      max-width: 900px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--muted);
+      padding: 8px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .landing-preview-inner {
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .landing-preview-topbar {
+      height: 36px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 6px;
+    }
+
+    .landing-preview-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    .landing-preview-body {
+      padding: 16px;
+    }
+
+    .landing-preview-grid {
+      display: grid;
+      grid-template-columns: 180px repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 11px;
+    }
+
+    .landing-preview-grid>div {
+      background: var(--bg);
+      padding: 8px 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .landing-preview-grid>div.header {
+      background: var(--muted);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted-fg);
+    }
+
+    .landing-preview-grid>div.shimmer {
+      background: linear-gradient(90deg, var(--muted) 25%, oklch(0.96 0 0) 50%, var(--muted) 75%);
+      background-size: 200% 100%;
+      animation: shimmerSlide 1.5s ease-in-out infinite;
+      color: transparent;
+    }
+
+    @keyframes shimmerSlide {
+      0% {
+        background-position: 200% 0;
+      }
+
+      100% {
+        background-position: -200% 0;
+      }
+    }
+
+    /* ══════════════════════════════════════════
+     TABLES LIST
+  ══════════════════════════════════════════ */
+    .tables-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--muted);
+    }
+
+    .tables-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 180ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      position: relative;
+    }
+
+    .table-card:hover {
+      border-color: oklch(0.82 0 0);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .table-card-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--muted);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--muted-fg);
+    }
+
+    .table-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .table-card-meta {
+      font-size: 11px;
+      color: var(--muted-fg);
+      display: flex;
+      gap: 8px;
+    }
+
+    .table-card-meta span {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .table-card-date {
+      font-size: 11px;
+      color: var(--muted-fg);
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+
+    .table-card-menu {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      color: var(--muted-fg);
+      opacity: 0;
+      transition: opacity 120ms;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+
+    .table-card:hover .table-card-menu {
+      opacity: 1;
+    }
+
+    .table-card-menu:hover {
+      background: var(--muted);
+    }
+
+    .table-list {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .table-list-header {
+      display: grid;
+      grid-template-columns: 1fr 100px 100px 100px 40px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .table-list-row {
+      display: grid;
+      grid-template-columns: 1fr 100px 100px 100px 40px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 80ms;
+      align-items: center;
+    }
+
+    .table-list-row:last-child {
+      border-bottom: none;
+    }
+
+    .table-list-row:hover {
+      background: var(--muted);
+    }
+
+    .table-list-row .name {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .table-list-row .meta {
+      font-size: 12px;
+      color: var(--muted-fg);
+    }
+
+    .table-list-row .actions {
+      color: var(--muted-fg);
+      text-align: center;
+      opacity: 0;
+      transition: opacity 80ms;
+    }
+
+    .table-list-row:hover .actions {
+      opacity: 1;
+    }
+
+    /* ══════════════════════════════════════════
+     TABLE WORKSPACE
+  ══════════════════════════════════════════ */
+    .table-topbar {
+      padding: 0 12px;
+    }
+
+    .table-title-input {
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      font-family: var(--font);
+      outline: none;
+      color: var(--fg);
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background 120ms;
+      min-width: 200px;
+      letter-spacing: -0.015em;
+    }
+
+    .table-title-input:hover {
+      background: var(--muted);
+    }
+
+    .table-title-input:focus {
+      background: var(--muted);
+    }
+
+    .table-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ── GRID ── */
+    .table-grid-wrap {
+      flex: 1;
+      overflow: auto;
+      min-width: 0;
+      transition: opacity 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94), transform 280ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .table-grid-wrap.collapsing {
+      opacity: 0;
+      transform: translateX(-30px);
+      pointer-events: none;
+    }
+
+    .table-grid-wrap.collapsed {
+      display: none;
+    }
+
+    .table-grid-wrap.expanding {
+      opacity: 0;
+      transform: translateX(-30px);
+      animation: gridExpand 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes gridExpand {
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .table-grid {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: max-content;
+      font-size: 12px;
+    }
+
+    .table-grid th,
+    .table-grid td {
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table-grid thead th {
+      background: var(--muted);
+      height: 34px;
+      padding: 0 12px;
+      text-align: left;
+      font-weight: 500;
+      font-size: 12px;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      user-select: none;
+      letter-spacing: -0.005em;
+    }
+
+    .table-grid thead th:first-child {
+      width: 36px;
+      min-width: 36px;
+    }
+
+    .col-header-inner {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .col-type-badge {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: oklch(0.93 0 0);
+      color: var(--muted-fg);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: var(--font);
+    }
+
+    /* 3-dot column menu trigger — subtle hover, no border */
+    .col-menu-btn {
+      margin-left: auto;
+      opacity: 0;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      color: var(--muted-fg);
+      cursor: pointer;
+      transition: opacity 100ms, background 100ms, color 100ms;
+      border: none;
+      background: none;
+      padding: 0;
+    }
+
+    th:hover .col-menu-btn {
+      opacity: 0.7;
+    }
+
+    .col-menu-btn:hover {
+      opacity: 1 !important;
+      background: oklch(0.92 0 0);
+      color: var(--fg);
+    }
+
+    .add-col-th {
+      min-width: 120px;
+    }
+
+    .add-col-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted-fg);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0 12px;
+      height: 100%;
+      transition: color 100ms;
+    }
+
+    .add-col-btn:hover {
+      color: var(--fg);
+    }
+
+    /* doc cell */
+    .doc-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      height: 42px;
+      position: relative;
+    }
+
+    .doc-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      color: var(--muted-fg);
+    }
+
+    .doc-name {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg);
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+
+    /* Row delete button — shows on hover of the doc cell's parent row */
+    .doc-row-delete {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-fg);
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 100ms, color 100ms, background 100ms;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    tr:hover .doc-row-delete {
+      opacity: 0.6;
+    }
+
+    .doc-row-delete:hover {
+      opacity: 1 !important;
+      color: var(--destructive);
+      background: var(--red-soft);
+    }
+
+    tr.not-ready td {
+      opacity: 0.3;
+    }
+
+    tr.not-ready {
+      animation: rowPulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes rowPulse {
+
+      0%,
+      100% {
+        opacity: 0.3
+      }
+
+      50% {
+        opacity: 0.5
+      }
+    }
+
+    /* data cells */
+    td.data-cell {
+      height: 42px;
+      padding: 0;
+      cursor: pointer;
+      vertical-align: middle;
+      min-width: 180px;
+      max-width: 260px;
+      transition: background 80ms;
+      position: relative;
+    }
+
+    .data-cell-inner {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 100%;
+      gap: 6px;
+    }
+
+    .data-cell-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    td.data-cell:hover:not(.cell-empty):not(.cell-extracting) {
+      background: oklch(0.975 0 0);
+    }
+
+    td.cell-empty {
+      background: repeating-linear-gradient(-45deg, transparent, transparent 4px, oklch(0.96 0 0) 4px, oklch(0.96 0 0) 5px);
+      background-size: 7px 7px;
+      opacity: 0.5;
+    }
+
+    td.cell-extracting {
+      background: linear-gradient(90deg, oklch(0.96 0 0) 25%, oklch(0.93 0 0) 50%, oklch(0.96 0 0) 75%);
+      background-size: 200% 100%;
+      animation: shimmerSlide 1.5s ease-in-out infinite;
+    }
+
+    td.cell-stale {
+      opacity: 0.45;
+    }
+
+    td.cell-error {
+      background: oklch(0.97 0.01 25);
+      color: var(--destructive);
+    }
+
+    td.cell-selected {
+      background: var(--blue-soft) !important;
+    }
+
+    /* Cell rerun icon */
+    .cell-rerun {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-fg);
+      flex-shrink: 0;
+      opacity: 0;
+      transition: opacity 100ms, color 100ms, background 100ms;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+
+    td.data-cell:hover .cell-rerun {
+      opacity: 0.5;
+    }
+
+    .cell-rerun:hover {
+      opacity: 1 !important;
+      color: var(--fg);
+      background: oklch(0.94 0 0);
+    }
+
+    .cell-rerun.spinning svg {
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .cell-text {
+      font-size: 12px;
+      color: var(--fg);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    .cell-yesno {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.01em;
+    }
+
+    .cell-yes {
+      background: var(--green-soft);
+      color: var(--green-fg);
+    }
+
+    .cell-no {
+      background: var(--red-soft);
+      color: var(--red-fg);
+    }
+
+    td.row-num {
+      width: 36px;
+      min-width: 36px;
+      text-align: center;
+      color: oklch(0.72 0 0);
+      font-size: 11px;
+      padding: 0;
+      border-right: 1px solid var(--border);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .add-doc-row td {
+      height: 36px;
+    }
+
+    .add-doc-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted-fg);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0 12px;
+      height: 100%;
+      transition: color 100ms;
+    }
+
+    .add-doc-btn:hover {
+      color: var(--fg);
+    }
+
+    /* ── MEMORY DRAWER ── */
+    .memory-drawer {
+      width: 0;
+      flex-shrink: 0;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: width 320ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      background: var(--bg);
+    }
+
+    .memory-drawer.open {
+      width: 380px;
+    }
+
+    .memory-drawer.viewer-mode {
+      width: 360px;
+      transition: width 320ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .drawer-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .drawer-doc-name {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.3;
+      flex: 1;
+      letter-spacing: -0.01em;
+    }
+
+    .drawer-doc-meta {
+      font-size: 11px;
+      color: var(--muted-fg);
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .drawer-doc-meta-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: oklch(0.78 0 0);
+    }
+
+    .drawer-close {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-fg);
+      flex-shrink: 0;
+      transition: all 100ms;
+    }
+
+    .drawer-close:hover {
+      background: var(--muted);
+      color: var(--fg);
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .drawer-col-section {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .drawer-col-header {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 80ms;
+    }
+
+    .drawer-col-header:hover {
+      background: var(--muted);
+    }
+
+    .drawer-col-title {
+      font-size: 12px;
+      font-weight: 600;
+      flex: 1;
+      letter-spacing: -0.005em;
+    }
+
+    .drawer-col-content {
+      padding: 4px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .drawer-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted-fg);
+      margin-bottom: 4px;
+    }
+
+    .drawer-answer {
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--fg);
+    }
+
+    .drawer-reasoning {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted-fg);
+      font-style: italic;
+    }
+
+    .source-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .source-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      background: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--fg);
+      cursor: pointer;
+      transition: all 120ms;
+    }
+
+    .source-chip:hover {
+      background: var(--accent-active);
+      border-color: oklch(0.82 0 0);
+      transform: translateY(-1px);
+    }
+
+    .chevron-icon {
+      transition: transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+
+    .drawer-col-section.open .chevron-icon {
+      transform: rotate(90deg);
+    }
+
+    /* ── DOC VIEWER ── */
+    .doc-viewer {
+      width: 0;
+      overflow: hidden;
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transition: width 320ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      background: oklch(0.13 0 0);
+      flex-shrink: 0;
+      opacity: 0;
+    }
+
+    .doc-viewer.open {
+      width: calc(100% - 360px);
+      opacity: 1;
+    }
+
+    .viewer-header {
+      background: oklch(0.16 0 0);
+      border-bottom: 1px solid oklch(0.24 0 0);
+      padding: 0 16px;
+      height: var(--topbar-h);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .viewer-filename {
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.8);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .viewer-page-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .viewer-nav-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 5px;
+      border: 1px solid oklch(0.32 0 0);
+      background: transparent;
+      color: rgba(255, 255, 255, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 100ms;
+    }
+
+    .viewer-nav-btn:hover {
+      background: oklch(0.24 0 0);
+      color: white;
+    }
+
+    .viewer-close {
+      color: rgba(255, 255, 255, 0.5);
+      cursor: pointer;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 5px;
+      transition: all 100ms;
+    }
+
+    .viewer-close:hover {
+      background: oklch(0.24 0 0);
+      color: white;
+    }
+
+    .viewer-body {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 24px;
+      gap: 20px;
+      overscroll-behavior: contain;
+    }
+
+    .pdf-page {
+      background: white;
+      border-radius: 4px;
+      width: 100%;
+      max-width: 580px;
+      aspect-ratio: 8.5/11;
+      position: relative;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+      padding: 48px;
+    }
+
+    .pdf-page-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .pdf-line {
+      height: 9px;
+      background: oklch(0.92 0 0);
+      border-radius: 2px;
+    }
+
+    .pdf-line.w-full {
+      width: 100%;
+    }
+
+    .pdf-line.w-80 {
+      width: 80%;
+    }
+
+    .pdf-line.w-60 {
+      width: 60%;
+    }
+
+    .pdf-line.w-90 {
+      width: 90%;
+    }
+
+    .pdf-line.w-40 {
+      width: 40%;
+    }
+
+    .pdf-line.w-70 {
+      width: 70%;
+    }
+
+    .pdf-highlight-line {
+      height: 10px;
+      border-radius: 2px;
+      background: oklch(0.88 0.1 85 / 0.45);
+      border: 1px solid oklch(0.75 0.12 85 / 0.6);
+    }
+
+    /* ── MODALS ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 440px;
+      box-shadow: var(--shadow-xl);
+      animation: modalIn 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96) translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .modal-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 14px;
+      font-weight: 600;
+      flex: 1;
+      letter-spacing: -0.01em;
+    }
+
+    .modal-close {
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-fg);
+      transition: all 100ms;
+    }
+
+    .modal-close:hover {
+      background: var(--muted);
+      color: var(--fg);
+    }
+
+    .modal-body {
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .form-field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .form-field input,
+    .form-field textarea,
+    .form-field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--fg);
+      background: var(--bg);
+      outline: none;
+      transition: border-color 150ms, box-shadow 150ms;
+    }
+
+    .form-field textarea {
+      resize: vertical;
+      min-height: 80px;
+      line-height: 1.5;
+    }
+
+    .form-field input:focus,
+    .form-field textarea:focus,
+    .form-field select:focus {
+      border-color: oklch(0.45 0 0);
+      box-shadow: 0 0 0 3px oklch(0.45 0 0 / 0.08);
+    }
+
+    .form-hint {
+      font-size: 11px;
+      color: var(--muted-fg);
+      margin-top: 5px;
+      line-height: 1.4;
+    }
+
+    /* ── Column Edit Modal ── */
+    .col-edit-modal {
+      width: 460px;
+    }
+
+    .col-edit-modal .modal-body {
+      gap: 14px;
+    }
+
+    .col-edit-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 8px;
+      margin-top: 4px;
+      border-top: 1px solid var(--border);
+    }
+
+    .col-edit-action-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 100ms;
+      border: none;
+      background: none;
+      font-family: var(--font);
+      color: var(--muted-fg);
+    }
+
+    .col-edit-action-btn:hover {
+      background: var(--muted);
+      color: var(--fg);
+    }
+
+    .col-edit-action-btn.destructive {
+      color: var(--destructive);
+    }
+
+    .col-edit-action-btn.destructive:hover {
+      background: var(--red-soft);
+      color: oklch(0.45 0.2 27);
+    }
+
+    /* ── Delete Confirm Dialog ── */
+    .confirm-dialog {
+      width: 380px;
+    }
+
+    .confirm-body {
+      padding: 20px;
+    }
+
+    .confirm-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--red-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+      color: var(--destructive);
+    }
+
+    .confirm-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .confirm-desc {
+      font-size: 13px;
+      color: var(--muted-fg);
+      line-height: 1.5;
+    }
+
+    .confirm-warning {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: oklch(0.98 0.01 25);
+      border: 1px solid oklch(0.93 0.03 25);
+      border-radius: 6px;
+      font-size: 12px;
+      color: oklch(0.45 0.12 25);
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .confirm-warning svg {
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* ── SAVE INDICATOR ── */
+    .save-indicator {
+      font-size: 11px;
+      color: var(--muted-fg);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .save-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green-fg);
+    }
+
+    /* ── TOAST ── */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--fg);
+      color: var(--bg);
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      animation: toastIn 280ms cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: -0.005em;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.95);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    /* ── DEV NAV ── */
+    .dev-nav {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 999;
+      background: var(--fg);
+      border-radius: 28px;
+      padding: 5px 6px;
+      display: flex;
+      gap: 3px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    .dev-nav-btn {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 120ms;
+      font-family: var(--font);
+      white-space: nowrap;
+      letter-spacing: -0.005em;
+    }
+
+    .dev-nav-btn:hover {
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .dev-nav-btn.active {
+      color: var(--fg);
+      background: white;
+      font-weight: 600;
+    }
+
+    /* run button */
+    .btn-run {
+      min-width: 84px;
+    }
+
+    .btn-run.running {
+      background: oklch(0.3 0 0);
+    }
+
+    .run-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    .table-workspace-grid {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: oklch(0.88 0 0);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: oklch(0.78 0 0);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- LANDING -->
+  <div id="screen-landing" class="screen">
+    <nav class="landing-nav">
+      <div class="landing-nav-logo">
+        <img src="../public/logo.jpg" alt="June" style="width:22px;height:22px;border-radius:5px;">
+        June
+      </div>
+      <div style="flex:1"></div>
+      <button class="btn btn-ghost btn-sm" onclick="goTo('login')">Sign in</button>
+      <button class="btn btn-primary btn-sm" onclick="goTo('login')" style="margin-left:4px;">Get started</button>
+    </nav>
+    <div class="landing-hero">
+      <div class="landing-badge">✦ Contract Intelligence Platform</div>
+      <h1>Review contracts at the speed of thought</h1>
+      <p>Upload hundreds of PDFs, ask questions as columns, and get AI-extracted answers — each backed by reasoning and
+        exact source citations.</p>
+      <button class="landing-cta" onclick="goTo('login')">
+        Start reviewing
+        <svg class="icon" viewBox="0 0 24 24">
+          <line x1="5" y1="12" x2="19" y2="12" />
+          <polyline points="12 5 19 12 12 19" />
+        </svg>
+      </button>
+      <div class="landing-preview">
+        <div class="landing-preview-inner">
+          <div class="landing-preview-topbar">
+            <div class="landing-preview-dot"></div>
+            <div class="landing-preview-dot"></div>
+            <div class="landing-preview-dot"></div>
+            <span style="font-size:11px;color:var(--muted-fg);margin-left:8px;">NDA Review — Series B</span>
+          </div>
+          <div class="landing-preview-body">
+            <div class="landing-preview-grid">
+              <div class="header">Document</div>
+              <div class="header">Governing Law</div>
+              <div class="header">Mutual?</div>
+              <div class="header">Liability Cap</div>
+              <div>Acme Corp NDA 2024.pdf</div>
+              <div>California, USA</div>
+              <div><span class="cell-yesno cell-yes" style="font-size:10px;padding:1px 6px;">Yes</span></div>
+              <div>$500,000</div>
+              <div>Beacon Tech NDA.pdf</div>
+              <div>New York, USA</div>
+              <div><span class="cell-yesno cell-no" style="font-size:10px;padding:1px 6px;">No</span></div>
+              <div>$250,000</div>
+              <div>Crescent Partners.pdf</div>
+              <div class="shimmer">shimmer</div>
+              <div class="shimmer">shimmer</div>
+              <div class="shimmer">shimmer</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="screen-login" class="screen">
+    <div class="login-cover">
+      <svg class="login-cover-grid" viewBox="0 0 720 900" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="0" y1="160" x2="720" y2="160" />
+        <line x1="0" y1="290" x2="720" y2="290" />
+        <line x1="0" y1="420" x2="720" y2="420" />
+        <line x1="0" y1="550" x2="720" y2="550" />
+        <line x1="0" y1="680" x2="720" y2="680" />
+        <line x1="150" y1="0" x2="150" y2="900" />
+        <line x1="300" y1="0" x2="300" y2="900" />
+        <line x1="450" y1="0" x2="450" y2="900" />
+        <line x1="600" y1="0" x2="600" y2="900" />
+      </svg>
+      <div class="login-cover-logo">
+        <img src="../public/logo.jpg" alt="June" class="login-cover-logo-img">
+        June
+      </div>
+      <div class="login-cover-bottom">
+        <div class="login-cover-label">Contract intelligence</div>
+        <div class="login-cover-tagline"><strong>Review hundreds of contracts.</strong><br>Extract answers. Cite every
+          source.</div>
+        <div class="login-cover-features">
+          <div class="login-cover-feature">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:rgba(255,255,255,0.4)">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            PDF parsing
+          </div>
+          <div class="login-cover-feature">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:rgba(255,255,255,0.4)">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="9" y1="9" x2="9" y2="21" />
+            </svg>
+            Structured extraction
+          </div>
+          <div class="login-cover-feature">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" style="stroke:rgba(255,255,255,0.4)">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            Source citations
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="login-form-side">
+      <div class="login-form-box">
+        <h1>Welcome back</h1>
+        <p>Sign in to your June workspace to continue.</p>
+        <div class="field"><label>Email address</label><input type="email" placeholder="you@firm.com"></div>
+        <div class="field"><label>Password</label><input type="password" placeholder="••••••••"></div>
+        <button class="login-btn" onclick="goTo('tables')">Sign in</button>
+        <div class="login-note">Invite-only access · <a href="#" style="color:inherit;text-decoration:underline;"
+            onclick="event.preventDefault();goTo('landing')">Back to home</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLES LIST -->
+  <div id="screen-tables" class="screen">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar-tables">
+        <div class="sidebar-logo" onclick="toggleSidebar('tables')">
+          <div class="logo-icon"><img src="../public/logo.jpg" alt="J"></div>
+          <span class="logo-text">June</span>
+        </div>
+        <nav class="sidebar-nav">
+          <div class="nav-item active" onclick="goTo('tables')">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              </svg></div>
+            <span class="nav-label">Tables</span>
+          </div>
+          <div class="nav-item disabled">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg></div>
+            <span class="nav-label">Vault</span><span class="coming-soon">Soon</span>
+          </div>
+          <div class="nav-item disabled">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg></div>
+            <span class="nav-label">Assistant</span><span class="coming-soon">Soon</span>
+          </div>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="nav-item" onclick="showToast('Settings — workspace config, account, logout (coming soon)')">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg></div>
+            <span class="nav-label">Settings</span>
+          </div>
+          <div class="nav-item" style="margin-top:2px;">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg></div>
+            <span class="nav-label" style="font-size:12px;color:var(--muted-fg);">you@firm.com</span>
+          </div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="topbar">
+          <span class="topbar-title">Tables</span>
+          <div class="topbar-spacer"></div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-ghost btn-sm" id="view-toggle" onclick="toggleTableView()" aria-label="Toggle view">
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="createNewTable()">
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New table
+            </button>
+          </div>
+        </div>
+        <div class="tables-content">
+          <div id="tables-grid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE WORKSPACE -->
+  <div id="screen-table" class="screen">
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar-table">
+        <div class="sidebar-logo" onclick="toggleSidebar('table')">
+          <div class="logo-icon"><img src="../public/logo.jpg" alt="J"></div>
+          <span class="logo-text">June</span>
+        </div>
+        <nav class="sidebar-nav">
+          <div class="nav-item" onclick="goTo('tables')">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <polyline points="15 18 9 12 15 6" />
+              </svg></div>
+            <span class="nav-label">All tables</span>
+          </div>
+          <div style="height:4px"></div>
+          <div class="nav-item active">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="3" y1="15" x2="21" y2="15" />
+                <line x1="9" y1="9" x2="9" y2="21" />
+              </svg></div>
+            <span class="nav-label" id="sidebar-table-name"
+              style="max-width:130px;overflow:hidden;text-overflow:ellipsis;">NDA Review</span>
+          </div>
+          <div class="nav-item disabled">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg></div>
+            <span class="nav-label">Vault</span><span class="coming-soon">Soon</span>
+          </div>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="nav-item">
+            <div class="nav-icon"><svg class="icon" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg></div>
+            <span class="nav-label">Settings</span>
+          </div>
+        </div>
+      </aside>
+      <div class="main table-workspace-grid">
+        <div class="topbar table-topbar">
+          <input class="table-title-input" id="table-title" value="NDA Review — Series B" oninput="saveIndicator()"
+            aria-label="Table name">
+          <div class="save-indicator" id="save-indicator" style="opacity:0;transition:opacity 300ms;">
+            <div class="save-dot"></div> Saved
+          </div>
+          <div class="topbar-spacer"></div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button class="btn btn-ghost btn-sm" onclick="simulateUpload()" aria-label="Upload documents">
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Upload
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="openAddColumnModal()" aria-label="Add column">
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Column
+            </button>
+            <div style="width:1px;height:18px;background:var(--border);margin:0 2px;"></div>
+            <button class="btn btn-primary btn-sm btn-run" id="run-btn" onclick="runExtraction()">
+              <svg class="icon icon-sm" viewBox="0 0 24 24">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              Run all
+            </button>
+          </div>
+        </div>
+        <div class="table-body" id="table-body">
+          <div class="table-grid-wrap" id="table-grid-wrap">
+            <table class="table-grid" id="main-table">
+              <thead>
+                <tr>
+                  <th style="width:36px;min-width:36px;border-right:1px solid var(--border);"></th>
+                  <th style="min-width:220px;max-width:260px;">
+                    <div class="col-header-inner">
+                      <svg class="icon icon-sm" viewBox="0 0 24 24" style="color:var(--muted-fg)">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      Document
+                    </div>
+                  </th>
+                  <th>
+                    <div class="col-header-inner"><span class="col-type-badge">T</span>Governing Law<button
+                        class="col-menu-btn"
+                        onclick="openColumnEditModal('Governing Law','What is the governing law and jurisdiction for this agreement?','free_response')"
+                        aria-label="Edit column"><svg class="icon icon-sm" viewBox="0 0 24 24">
+                          <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+                        </svg></button></div>
+                  </th>
+                  <th>
+                    <div class="col-header-inner"><span class="col-type-badge">Y/N</span>NDA Mutual?<button
+                        class="col-menu-btn"
+                        onclick="openColumnEditModal('NDA Mutual?','Is this a mutual NDA where both parties have reciprocal obligations?','yes_no')"
+                        aria-label="Edit column"><svg class="icon icon-sm" viewBox="0 0 24 24">
+                          <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+                        </svg></button></div>
+                  </th>
+                  <th>
+                    <div class="col-header-inner"><span class="col-type-badge">$</span>Liability Cap<button
+                        class="col-menu-btn"
+                        onclick="openColumnEditModal('Liability Cap','What is the aggregate liability cap? Express as a dollar amount.','currency')"
+                        aria-label="Edit column"><svg class="icon icon-sm" viewBox="0 0 24 24">
+                          <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+                        </svg></button></div>
+                  </th>
+                  <th>
+                    <div class="col-header-inner"><span class="col-type-badge">DATE</span>Effective Date<button
+                        class="col-menu-btn"
+                        onclick="openColumnEditModal('Effective Date','What is the effective date of this agreement?','date')"
+                        aria-label="Edit column"><svg class="icon icon-sm" viewBox="0 0 24 24">
+                          <circle cx="12" cy="5" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+                          <circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" />
+                        </svg></button></div>
+                  </th>
+                  <th class="add-col-th">
+                    <div class="add-col-btn" onclick="openAddColumnModal()"><svg class="icon icon-sm"
+                        viewBox="0 0 24 24">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>Add column</div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="table-tbody"></tbody>
+            </table>
+          </div>
+          <div class="memory-drawer" id="memory-drawer">
+            <div class="drawer-header">
+              <div>
+                <div class="drawer-doc-name" id="drawer-doc-name">Acme Corp NDA 2024.pdf</div>
+                <div class="drawer-doc-meta"><span>4 columns</span>
+                  <div class="drawer-doc-meta-dot"></div><span>12 pages</span>
+                </div>
+              </div>
+              <div class="drawer-close" onclick="closeDrawer()" aria-label="Close drawer">
+                <svg class="icon" viewBox="0 0 24 24">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
+            </div>
+            <div class="drawer-body" id="drawer-body"></div>
+          </div>
+          <div class="doc-viewer" id="doc-viewer">
+            <div class="viewer-header">
+              <svg class="icon" style="color:rgba(255,255,255,0.4);flex-shrink:0;" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span class="viewer-filename" id="viewer-filename">Acme Corp NDA 2024.pdf</span>
+              <div class="viewer-page-nav">
+                <button class="viewer-nav-btn" onclick="prevPage()" aria-label="Previous page"><svg class="icon icon-sm"
+                    style="stroke:currentColor;" viewBox="0 0 24 24">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg></button>
+                <span id="page-indicator">4 / 12</span>
+                <button class="viewer-nav-btn" onclick="nextPage()" aria-label="Next page"><svg class="icon icon-sm"
+                    style="stroke:currentColor;" viewBox="0 0 24 24">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg></button>
+              </div>
+              <div style="width:1px;height:18px;background:oklch(0.28 0 0);margin:0 4px;"></div>
+              <div class="viewer-close" onclick="closeViewer()" aria-label="Close viewer">
+                <svg class="icon" style="stroke:rgba(255,255,255,0.6);" viewBox="0 0 24 24">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </div>
+            </div>
+            <div class="viewer-body">
+              <div class="pdf-page">
+                <div class="pdf-page-lines">
+                  <div style="height:14px;background:oklch(0.86 0 0);border-radius:2px;width:55%;margin-bottom:10px;">
+                  </div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-90"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-80"></div>
+                  <div class="pdf-line w-60"></div>
+                  <div style="height:20px;"></div>
+                  <div class="pdf-highlight-line" style="width:100%;"></div>
+                  <div class="pdf-highlight-line" style="width:90%;margin-top:4px;"></div>
+                  <div class="pdf-highlight-line" style="width:40%;margin-top:4px;"></div>
+                  <div style="height:20px;"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-80"></div>
+                  <div class="pdf-line w-90"></div>
+                  <div class="pdf-line w-60"></div>
+                  <div style="height:20px;"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-70"></div>
+                  <div style="height:20px;"></div>
+                  <div class="pdf-line w-full"></div>
+                  <div class="pdf-line w-90"></div>
+                  <div class="pdf-line w-40"></div>
+                </div>
+                <div
+                  style="position:absolute;bottom:32px;right:40px;font-size:10px;color:oklch(0.7 0 0);font-variant-numeric:tabular-nums;">
+                  4</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD COLUMN MODAL -->
+  <div class="modal-overlay" id="add-col-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Add column</div>
+        <div class="modal-close" onclick="closeAddColumnModal()" aria-label="Close"><svg class="icon"
+            viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></div>
+      </div>
+      <div class="modal-body">
+        <div class="form-field"><label>Column title</label><input type="text" placeholder="e.g. Governing Law"
+            id="add-col-title"></div>
+        <div class="form-field"><label>Extraction prompt</label><textarea
+            placeholder="e.g. What is the governing law for this agreement? Include the jurisdiction."
+            id="add-col-prompt"></textarea>
+          <div class="form-hint">The AI reads each document and answers this question per row.</div>
+        </div>
+        <div class="form-field"><label>Column type</label><select id="add-col-type">
+            <option value="free_response">Free response</option>
+            <option value="yes_no">Yes / No</option>
+            <option value="date">Date</option>
+            <option value="currency">Currency</option>
+            <option value="verbatim">Verbatim (exact quote)</option>
+          </select></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeAddColumnModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="addColumn()">Add column</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUMN EDIT MODAL -->
+  <div class="modal-overlay" id="col-edit-modal">
+    <div class="modal col-edit-modal">
+      <div class="modal-header">
+        <div class="modal-title" id="col-edit-modal-title">Edit column</div>
+        <div class="modal-close" onclick="closeColumnEditModal()" aria-label="Close"><svg class="icon"
+            viewBox="0 0 24 24">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg></div>
+      </div>
+      <div class="modal-body">
+        <div class="form-field"><label>Column title</label><input type="text" id="col-edit-title"></div>
+        <div class="form-field"><label>Extraction prompt</label><textarea id="col-edit-prompt"></textarea>
+          <div class="form-hint">Editing the prompt will mark all cells in this column as stale.</div>
+        </div>
+        <div class="form-field"><label>Column type</label><select id="col-edit-type">
+            <option value="free_response">Free response</option>
+            <option value="yes_no">Yes / No</option>
+            <option value="date">Date</option>
+            <option value="currency">Currency</option>
+            <option value="verbatim">Verbatim (exact quote)</option>
+          </select></div>
+        <div class="col-edit-actions">
+          <button class="col-edit-action-btn" onclick="rerunColumn()">
+            <svg class="icon icon-sm" viewBox="0 0 24 24">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            Re-run column
+          </button>
+          <div style="flex:1"></div>
+          <button class="col-edit-action-btn destructive"
+            onclick="closeColumnEditModal();openDeleteDialog('col', currentEditingColumn)">
+            <svg class="icon icon-sm" viewBox="0 0 24 24">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            Delete column
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeColumnEditModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveColumnEdit()">Save changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DELETE CONFIRM DIALOG -->
+  <div class="modal-overlay" id="delete-modal">
+    <div class="modal confirm-dialog">
+      <div class="confirm-body">
+        <div class="confirm-icon" id="delete-icon">
+          <svg class="icon" viewBox="0 0 24 24" style="width:20px;height:20px;">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </div>
+        <div class="confirm-title" id="delete-title">Delete column?</div>
+        <div class="confirm-desc" id="delete-desc">This will permanently remove the column and all extracted answers for
+          every document.</div>
+        <div class="confirm-warning" id="delete-warning">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span id="delete-warning-text">This action cannot be undone. All extracted data will be lost.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDeleteDialog()">Cancel</button>
+        <button class="btn btn-destructive" onclick="confirmDelete()">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <div class="dev-nav">
+    <div class="dev-nav-btn" onclick="goTo('landing')">Landing</div>
+    <div class="dev-nav-btn" onclick="goTo('login')">Login</div>
+    <div class="dev-nav-btn" onclick="goTo('tables')">Tables</div>
+    <div class="dev-nav-btn" onclick="goTo('table-empty')">Empty Table</div>
+    <div class="dev-nav-btn" onclick="goTo('table-data')">Table + Data</div>
+    <div class="dev-nav-btn" onclick="goTo('table-drawer')">+ Drawer</div>
+    <div class="dev-nav-btn" onclick="goTo('table-viewer')">+ Viewer</div>
+  </div>
+
+  <script>
+    const state = {
+      currentScreen: 'landing',
+      sidebarExpanded: { tables: false, table: false },
+      tableView: 'grid',
+      drawerOpen: false,
+      viewerOpen: false,
+      selectedRow: null,
+      viewerPage: 4,
+      viewerTotal: 12,
+      runState: 'idle',
+      transitioning: false,
+      tables: [
+        { id: 1, name: 'NDA Review — Series B', docs: 24, cols: 6, date: 'Today', hasData: true },
+        { id: 2, name: 'Loan Agreements — Q2 2025', docs: 8, cols: 26, date: 'Yesterday', hasData: true },
+        { id: 3, name: 'Employment Due Diligence', docs: 4, cols: 7, date: 'Jul 1', hasData: false },
+        { id: 4, name: 'M&A Vendor Agreements', docs: 125, cols: 6, date: 'Jun 28', hasData: true },
+        { id: 5, name: 'FOIL Request Analysis', docs: 0, cols: 0, date: 'Today', hasData: false },
+      ],
+      tableRows: [
+        {
+          id: 'r1', name: 'Acme Corp NDA 2024.pdf', ready: true, pages: 12,
+          cells: { 'Governing Law': 'California, USA', 'NDA Mutual?': true, 'Liability Cap': '$500,000', 'Effective Date': 'Jan 15, 2024' }
+        },
+        {
+          id: 'r2', name: 'Beacon Technologies NDA.pdf', ready: true, pages: 8,
+          cells: { 'Governing Law': 'New York, USA', 'NDA Mutual?': false, 'Liability Cap': '$250,000', 'Effective Date': 'Mar 2, 2024' }
+        },
+        {
+          id: 'r3', name: 'Crescent Partners Conf Agreement.pdf', ready: true, pages: 15,
+          cells: { 'Governing Law': 'Delaware, USA', 'NDA Mutual?': true, 'Liability Cap': '$1,000,000', 'Effective Date': 'Feb 28, 2024' }
+        },
+        { id: 'r4', name: 'Drift Capital NDA v2.pdf', ready: false, pages: null, cells: {} },
+        { id: 'r5', name: 'Euler Systems Confidentiality.pdf', ready: false, pages: null, cells: {} },
+        {
+          id: 'r6', name: 'Falcon Group NDA 2024.pdf', ready: true, pages: 10,
+          cells: { 'Governing Law': 'Texas, USA', 'NDA Mutual?': true, 'Liability Cap': null, 'Effective Date': 'Apr 10, 2024' }
+        },
+        {
+          id: 'r7', name: 'Gemini Holdings NDA.pdf', ready: true, pages: 6,
+          cells: { 'Governing Law': 'Illinois, USA', 'NDA Mutual?': false, 'Liability Cap': '$750,000', 'Effective Date': 'May 1, 2024' }
+        },
+        {
+          id: 'r8', name: 'Horizon Labs Agreement.pdf', ready: true, pages: 20,
+          cells: { 'Governing Law': 'Massachusetts, USA', 'NDA Mutual?': true, 'Liability Cap': '$2,000,000', 'Effective Date': 'Jun 5, 2024' }
+        },
+      ],
+      columns: ['Governing Law', 'NDA Mutual?', 'Liability Cap', 'Effective Date'],
+      columnTypes: { 'Governing Law': 'T', 'NDA Mutual?': 'Y/N', 'Liability Cap': '$', 'Effective Date': 'DATE' },
+      extractionPhase: 'none',
+    };
+
+    let currentEditingColumn = null;
+
+    // ── NAVIGATION ──
+    function goTo(screen) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.dev-nav-btn').forEach(b => b.classList.remove('active'));
+      const devBtns = document.querySelectorAll('.dev-nav-btn');
+      const devMap = { 'landing': 0, 'login': 1, 'tables': 2, 'table-empty': 3, 'table': 3, 'table-data': 4, 'table-drawer': 5, 'table-viewer': 6 };
+      if (devMap[screen] !== undefined && devBtns[devMap[screen]]) devBtns[devMap[screen]].classList.add('active');
+
+      switch (screen) {
+        case 'landing': document.getElementById('screen-landing').classList.add('active'); break;
+        case 'login': document.getElementById('screen-login').classList.add('active'); break;
+        case 'tables':
+          document.getElementById('screen-tables').classList.add('active');
+          renderTableCards();
+          break;
+        case 'table-empty': case 'table':
+          document.getElementById('screen-table').classList.add('active');
+          state.extractionPhase = 'none'; state.drawerOpen = false; state.viewerOpen = false;
+          resetPanelStates(); renderTablePage();
+          break;
+        case 'table-data':
+          document.getElementById('screen-table').classList.add('active');
+          state.extractionPhase = 'populated'; state.drawerOpen = false; state.viewerOpen = false;
+          resetPanelStates(); renderTablePage();
+          break;
+        case 'table-drawer':
+          document.getElementById('screen-table').classList.add('active');
+          state.extractionPhase = 'populated'; state.drawerOpen = true; state.viewerOpen = false;
+          state.selectedRow = state.tableRows[0];
+          resetPanelStates(); renderTablePage();
+          setTimeout(() => openDrawer(state.tableRows[0]), 50);
+          break;
+        case 'table-viewer':
+          document.getElementById('screen-table').classList.add('active');
+          state.extractionPhase = 'populated'; state.drawerOpen = true; state.viewerOpen = true;
+          state.selectedRow = state.tableRows[0];
+          resetPanelStates(); renderTablePage();
+          setTimeout(() => {
+            openDrawer(state.tableRows[0]);
+            setTimeout(() => animateToViewer(), 100);
+          }, 50);
+          break;
+      }
+      state.currentScreen = screen;
+    }
+
+    function resetPanelStates() {
+      const gw = document.getElementById('table-grid-wrap');
+      const d = document.getElementById('memory-drawer');
+      const v = document.getElementById('doc-viewer');
+      gw.className = 'table-grid-wrap'; gw.style.display = '';
+      d.classList.remove('open', 'viewer-mode'); d.style.width = '';
+      v.classList.remove('open'); v.style.width = ''; v.style.opacity = '';
+    }
+
+    function toggleSidebar(which) {
+      state.sidebarExpanded[which] = !state.sidebarExpanded[which];
+      document.getElementById('sidebar-' + which).classList.toggle('expanded', state.sidebarExpanded[which]);
+    }
+
+    // ── TABLES LIST ──
+    function renderTableCards() {
+      const c = document.getElementById('tables-grid');
+      if (state.tableView === 'grid') {
+        c.className = 'tables-grid';
+        c.innerHTML = state.tables.map(t => `
+      <div class="table-card" onclick="openTable(${t.id})">
+        <div class="table-card-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg></div>
+        <div class="table-card-name">${t.name}</div>
+        <div class="table-card-meta"><span>${t.docs} docs</span><span>${t.cols} cols</span></div>
+        <div class="table-card-date">${t.date}</div>
+        <div class="table-card-menu" onclick="event.stopPropagation();openDeleteDialog('table','${t.name}')">···</div>
+      </div>`).join('');
+      } else {
+        c.className = '';
+        c.innerHTML = `<div class="table-list"><div class="table-list-header"><div>Name</div><div>Documents</div><div>Columns</div><div>Updated</div><div></div></div>
+      ${state.tables.map(t => `<div class="table-list-row" onclick="openTable(${t.id})"><div class="name">${t.name}</div><div class="meta">${t.docs}</div><div class="meta">${t.cols}</div><div class="meta">${t.date}</div><div class="actions" onclick="event.stopPropagation();openDeleteDialog('table','${t.name}')">···</div></div>`).join('')}</div>`;
+      }
+    }
+    function toggleTableView() {
+      state.tableView = state.tableView === 'grid' ? 'list' : 'grid';
+      document.getElementById('view-toggle').innerHTML = state.tableView === 'grid'
+        ? `<svg class="icon icon-sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>`
+        : `<svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`;
+      renderTableCards();
+    }
+    function createNewTable() {
+      const newT = { id: Date.now(), name: 'New Table', docs: 0, cols: 0, date: 'Just now', hasData: false };
+      state.tables.unshift(newT);
+      renderTableCards();
+      showToast('Table created');
+      setTimeout(() => { document.getElementById('table-title').value = 'New Table'; document.getElementById('sidebar-table-name').textContent = 'New Table'; goTo('table-empty'); }, 300);
+    }
+    function openTable(id) {
+      const t = state.tables.find(x => x.id === id);
+      if (t) { document.getElementById('table-title').value = t.name; document.getElementById('sidebar-table-name').textContent = t.name; goTo(t.hasData ? 'table-data' : 'table-empty'); }
+    }
+
+    // ── TABLE RENDER ──
+    function renderTablePage() {
+      const tbody = document.getElementById('table-tbody');
+      const phase = state.extractionPhase;
+      let rows = '';
+      state.tableRows.forEach((row, i) => {
+        const isReady = row.ready;
+        const isSel = state.selectedRow && state.selectedRow.id === row.id;
+        rows += `<tr class="${!isReady ? 'not-ready' : ''}" id="row-${row.id}" style="${isSel && phase === 'populated' ? 'background:oklch(0.985 0.005 250);' : ''}">
+      <td class="row-num">${i + 1}</td>
+      <td><div class="doc-cell">
+        <svg class="doc-icon icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span class="doc-name">${row.name}</span>
+        ${isReady ? `<button class="doc-row-delete" onclick="event.stopPropagation();openDeleteDialog('doc','${row.name}')" aria-label="Delete document"><svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>` : ''}
+      </div></td>`;
+        if (phase === 'none') {
+          state.columns.forEach(() => { rows += `<td class="data-cell cell-empty"></td>`; });
+        } else if (phase === 'shimmer') {
+          state.columns.forEach(() => { rows += `<td class="data-cell cell-extracting"></td>`; });
+        } else {
+          state.columns.forEach(col => {
+            if (!isReady) { rows += `<td class="data-cell cell-empty"></td>`; return; }
+            const val = row.cells[col];
+            const sc = isSel ? ' cell-selected' : '';
+            if (val === null || val === undefined) {
+              rows += `<td class="data-cell cell-empty${sc}" onclick="selectRow('${row.id}')"></td>`;
+            } else if (val === true) {
+              rows += `<td class="data-cell cell-completed${sc}" onclick="selectRow('${row.id}')"><div class="data-cell-inner"><div class="data-cell-content"><span class="cell-yesno cell-yes">✓ Yes</span></div><button class="cell-rerun" onclick="event.stopPropagation();rerunCell(this,'${row.id}','${col}')" aria-label="Re-run cell"><svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button></div></td>`;
+            } else if (val === false) {
+              rows += `<td class="data-cell cell-completed${sc}" onclick="selectRow('${row.id}')"><div class="data-cell-inner"><div class="data-cell-content"><span class="cell-yesno cell-no">✗ No</span></div><button class="cell-rerun" onclick="event.stopPropagation();rerunCell(this,'${row.id}','${col}')" aria-label="Re-run cell"><svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button></div></td>`;
+            } else {
+              rows += `<td class="data-cell cell-completed${sc}" onclick="selectRow('${row.id}')"><div class="data-cell-inner"><div class="data-cell-content"><div class="cell-text">${val}</div></div><button class="cell-rerun" onclick="event.stopPropagation();rerunCell(this,'${row.id}','${col}')" aria-label="Re-run cell"><svg class="icon icon-xs" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button></div></td>`;
+            }
+          });
+        }
+        rows += `<td></td></tr>`;
+      });
+      rows += `<tr class="add-doc-row"><td></td><td colspan="${state.columns.length + 2}"><div class="add-doc-btn" onclick="simulateUpload()"><svg class="icon icon-sm" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add document</div></td></tr>`;
+      tbody.innerHTML = rows;
+
+      const drawer = document.getElementById('memory-drawer');
+      const viewer = document.getElementById('doc-viewer');
+      const gridWrap = document.getElementById('table-grid-wrap');
+      if (state.viewerOpen) {
+        gridWrap.classList.add('collapsed'); gridWrap.style.display = 'none';
+        drawer.classList.add('open', 'viewer-mode');
+        viewer.classList.add('open');
+      } else if (state.drawerOpen) {
+        gridWrap.classList.remove('collapsed'); gridWrap.style.display = '';
+        drawer.classList.add('open'); drawer.classList.remove('viewer-mode');
+        viewer.classList.remove('open');
+      } else {
+        gridWrap.classList.remove('collapsed'); gridWrap.style.display = '';
+        drawer.classList.remove('open', 'viewer-mode');
+        viewer.classList.remove('open');
+      }
+    }
+
+    function selectRow(id) {
+      const row = state.tableRows.find(r => r.id === id);
+      if (row && row.ready) { state.selectedRow = row; openDrawer(row); renderTablePage(); }
+    }
+
+    // ── CELL RERUN ──
+    function rerunCell(btn, rowId, col) {
+      btn.classList.add('spinning');
+      showToast(`Re-running "${col}" for this document…`);
+      setTimeout(() => { btn.classList.remove('spinning'); showToast('Cell updated'); }, 2000);
+    }
+
+    // ── DRAWER ──
+    const drawerData = {
+      'r1': [
+        { col: 'Governing Law', answer: 'California, United States', reasoning: 'The agreement states "This Agreement shall be governed by and construed in accordance with the laws of the State of California" in section 12.1.', sources: ['p.4, §12.1'] },
+        { col: 'NDA Mutual?', answer: 'Yes — mutual obligations', reasoning: 'Both parties are designated as "Disclosing Party" and "Receiving Party" interchangeably throughout the agreement, establishing reciprocal obligations.', sources: ['p.1, §1.2', 'p.2, §3.1'] },
+        { col: 'Liability Cap', answer: '$500,000 USD', reasoning: 'Section 9.3 explicitly caps aggregate liability at five hundred thousand dollars ($500,000).', sources: ['p.8, §9.3'] },
+        { col: 'Effective Date', answer: 'January 15, 2024', reasoning: 'The agreement header and signature block both identify the effective date as "January 15, 2024".', sources: ['p.1, Header'] },
+      ],
+      'r2': [
+        { col: 'Governing Law', answer: 'New York, United States', reasoning: 'Section 14.2 specifies "This Agreement shall be governed by the laws of the State of New York."', sources: ['p.6, §14.2'] },
+        { col: 'NDA Mutual?', answer: 'No — unilateral', reasoning: 'Only one party is designated as "Disclosing Party" with the other as "Receiving Party" throughout.', sources: ['p.1, Recitals'] },
+        { col: 'Liability Cap', answer: '$250,000 USD', reasoning: 'Section 7.1 states liability is limited to $250,000 in aggregate.', sources: ['p.5, §7.1'] },
+        { col: 'Effective Date', answer: 'March 2, 2024', reasoning: 'Effective date stated in the preamble.', sources: ['p.1, Preamble'] },
+      ]
+    };
+
+    function openDrawer(row) {
+      state.drawerOpen = true; state.selectedRow = row;
+      document.getElementById('memory-drawer').classList.add('open');
+      document.getElementById('drawer-doc-name').textContent = row.name;
+      const data = drawerData[row.id] || drawerData['r1'];
+      document.getElementById('drawer-body').innerHTML = data.map((item, i) => `
+    <div class="drawer-col-section ${i === 0 ? 'open' : ''}" id="drawer-section-${i}">
+      <div class="drawer-col-header" onclick="toggleDrawerSection(${i})">
+        <span class="col-type-badge">${state.columnTypes[item.col] || 'T'}</span>
+        <span class="drawer-col-title">${item.col}</span>
+        <svg class="icon icon-sm chevron-icon" style="color:var(--muted-fg);flex-shrink:0;" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+      </div>
+      ${i === 0 ? renderDrawerContent(item) : ''}
+    </div>`).join('');
+      renderTablePage();
+    }
+
+    function renderDrawerContent(item) {
+      return `<div class="drawer-col-content">
+    <div><div class="drawer-section-label">Answer</div><div class="drawer-answer">${item.answer}</div></div>
+    <div><div class="drawer-section-label">Reasoning</div><div class="drawer-reasoning">${item.reasoning}</div></div>
+    <div><div class="drawer-section-label">Sources</div>
+      <div class="source-chips">${item.sources.map(s => `<div class="source-chip" onclick="animateToViewer()">
+        <svg class="icon icon-xs" viewBox="0 0 24 24" style="stroke:currentColor;width:10px;height:10px;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        ${s}</div>`).join('')}</div>
+    </div></div>`;
+    }
+
+    function closeDrawer() {
+      if (state.viewerOpen) { closeViewer(); return; }
+      state.drawerOpen = false; state.viewerOpen = false; state.selectedRow = null;
+      document.getElementById('memory-drawer').classList.remove('open', 'viewer-mode');
+      document.getElementById('doc-viewer').classList.remove('open');
+      document.getElementById('table-grid-wrap').style.display = '';
+      document.getElementById('table-grid-wrap').classList.remove('collapsed');
+      renderTablePage();
+    }
+
+    function toggleDrawerSection(i) {
+      const section = document.getElementById('drawer-section-' + i);
+      const isOpen = section.classList.contains('open');
+      document.querySelectorAll('.drawer-col-section').forEach(s => { s.classList.remove('open'); const c = s.querySelector('.drawer-col-content'); if (c) c.remove(); });
+      if (!isOpen) {
+        section.classList.add('open');
+        const row = state.selectedRow;
+        const data = (drawerData[row?.id] || drawerData['r1'])[i];
+        if (data) section.insertAdjacentHTML('beforeend', renderDrawerContent(data));
+      }
+    }
+
+    // ── ANIMATED VIEWER TRANSITION ──
+    function animateToViewer() {
+      if (state.viewerOpen || state.transitioning) return;
+      state.transitioning = true;
+      const gridWrap = document.getElementById('table-grid-wrap');
+      const drawer = document.getElementById('memory-drawer');
+      const viewer = document.getElementById('doc-viewer');
+
+      // Step 1: Collapse table grid with animation
+      gridWrap.classList.add('collapsing');
+
+      setTimeout(() => {
+        // Step 2: Hide grid, switch drawer to viewer-mode width
+        gridWrap.style.display = 'none';
+        gridWrap.classList.remove('collapsing');
+        gridWrap.classList.add('collapsed');
+        drawer.classList.add('viewer-mode');
+
+        // Step 3: Expand viewer
+        viewer.style.opacity = '0';
+        viewer.classList.add('open');
+        viewer.style.transition = 'width 320ms cubic-bezier(0.25,0.46,0.45,0.94), opacity 250ms 80ms ease';
+        viewer.style.opacity = '1';
+
+        state.viewerOpen = true;
+        document.getElementById('viewer-filename').textContent = state.selectedRow ? state.selectedRow.name : 'Document.pdf';
+        document.getElementById('page-indicator').textContent = `${state.viewerPage} / ${state.viewerTotal}`;
+
+        setTimeout(() => {
+          viewer.style.transition = '';
+          state.transitioning = false;
+        }, 350);
+      }, 280);
+    }
+
+    function closeViewer() {
+      if (state.transitioning) return;
+      state.transitioning = true;
+      const gridWrap = document.getElementById('table-grid-wrap');
+      const drawer = document.getElementById('memory-drawer');
+      const viewer = document.getElementById('doc-viewer');
+
+      // Step 1: Collapse viewer
+      viewer.style.transition = 'width 280ms cubic-bezier(0.25,0.46,0.45,0.94), opacity 180ms ease';
+      viewer.style.opacity = '0';
+      viewer.classList.remove('open');
+
+      setTimeout(() => {
+        viewer.style.transition = '';
+        viewer.style.opacity = '';
+        state.viewerOpen = false;
+
+        // Step 2: Restore drawer width
+        drawer.classList.remove('viewer-mode');
+
+        // Step 3: Expand grid back
+        gridWrap.style.display = '';
+        gridWrap.classList.remove('collapsed');
+        gridWrap.classList.add('expanding');
+
+        setTimeout(() => {
+          gridWrap.classList.remove('expanding');
+          state.transitioning = false;
+        }, 320);
+      }, 280);
+    }
+
+    function prevPage() { if (state.viewerPage > 1) state.viewerPage--; document.getElementById('page-indicator').textContent = `${state.viewerPage} / ${state.viewerTotal}`; }
+    function nextPage() { if (state.viewerPage < state.viewerTotal) state.viewerPage++; document.getElementById('page-indicator').textContent = `${state.viewerPage} / ${state.viewerTotal}`; }
+
+    // ── ADD COLUMN MODAL ──
+    function openAddColumnModal() { document.getElementById('add-col-modal').classList.add('open'); setTimeout(() => document.getElementById('add-col-title').focus(), 50); }
+    function closeAddColumnModal() { document.getElementById('add-col-modal').classList.remove('open'); }
+    function addColumn() {
+      const title = document.getElementById('add-col-title').value.trim() || 'New Column';
+      const type = document.getElementById('add-col-type').value;
+      const typeLabel = { free_response: 'T', yes_no: 'Y/N', date: 'DATE', currency: '$', verbatim: 'V' }[type] || 'T';
+      state.columns.push(title); state.columnTypes[title] = typeLabel;
+      closeAddColumnModal(); showToast(`Column "${title}" added`);
+      document.getElementById('add-col-title').value = ''; document.getElementById('add-col-prompt').value = '';
+      renderTablePage();
+    }
+
+    // ── COLUMN EDIT MODAL ──
+    function openColumnEditModal(colName, prompt, type) {
+      currentEditingColumn = colName;
+      document.getElementById('col-edit-modal-title').textContent = `Edit "${colName}"`;
+      document.getElementById('col-edit-title').value = colName;
+      document.getElementById('col-edit-prompt').value = prompt;
+      document.getElementById('col-edit-type').value = type;
+      document.getElementById('col-edit-modal').classList.add('open');
+      setTimeout(() => document.getElementById('col-edit-title').focus(), 50);
+    }
+    function closeColumnEditModal() { document.getElementById('col-edit-modal').classList.remove('open'); currentEditingColumn = null; }
+    function saveColumnEdit() {
+      const newTitle = document.getElementById('col-edit-title').value.trim();
+      if (newTitle && currentEditingColumn) showToast(`Column "${newTitle}" updated — cells marked stale`);
+      closeColumnEditModal();
+    }
+    function rerunColumn() {
+      if (currentEditingColumn) showToast(`Re-running "${currentEditingColumn}" for all documents…`);
+      closeColumnEditModal();
+    }
+
+    // ── DELETE DIALOG ──
+    let deleteTarget = null;
+    function openDeleteDialog(type, name) {
+      deleteTarget = { type, name };
+      if (type === 'col') {
+        document.getElementById('delete-title').textContent = `Delete "${name}" column?`;
+        document.getElementById('delete-desc').textContent = 'This will permanently remove the column and all extracted answers for every document in this table.';
+        document.getElementById('delete-warning-text').textContent = 'This action cannot be undone. All extracted data for this column will be lost.';
+      } else if (type === 'doc') {
+        document.getElementById('delete-title').textContent = `Remove "${name}"?`;
+        document.getElementById('delete-desc').textContent = 'This will remove the document from this table and delete all extracted answers for it.';
+        document.getElementById('delete-warning-text').textContent = 'This action cannot be undone. The document and its extracted data will be permanently removed from this table.';
+      } else {
+        document.getElementById('delete-title').textContent = `Delete "${name}"?`;
+        document.getElementById('delete-desc').textContent = 'All documents, columns, and extracted data in this table will be permanently removed.';
+        document.getElementById('delete-warning-text').textContent = 'This action cannot be undone. Everything in this table will be lost.';
+      }
+      document.getElementById('delete-modal').classList.add('open');
+    }
+    function closeDeleteDialog() { document.getElementById('delete-modal').classList.remove('open'); deleteTarget = null; }
+    function confirmDelete() {
+      if (deleteTarget) {
+        if (deleteTarget.type === 'table') { state.tables = state.tables.filter(t => t.name !== deleteTarget.name); renderTableCards(); }
+        if (deleteTarget.type === 'doc') { state.tableRows = state.tableRows.filter(r => r.name !== deleteTarget.name); renderTablePage(); }
+        showToast(`Deleted "${deleteTarget.name}"`);
+      }
+      closeDeleteDialog();
+    }
+
+    // ── RUN EXTRACTION ──
+    function runExtraction() {
+      if (state.runState === 'running') return;
+      state.runState = 'running'; state.extractionPhase = 'shimmer';
+      const btn = document.getElementById('run-btn');
+      btn.innerHTML = '<div class="run-spinner"></div> Running…'; btn.classList.add('running');
+      renderTablePage();
+      let t = 0;
+      const readyRows = state.tableRows.filter(r => r.ready);
+      readyRows.forEach(() => { state.columns.forEach(() => { t += 300 + Math.random() * 500; }); });
+      let elapsed = 0;
+      readyRows.forEach(() => { state.columns.forEach(() => { elapsed += 300 + Math.random() * 500; setTimeout(() => { state.extractionPhase = 'populated'; renderTablePage(); }, elapsed); }); });
+      setTimeout(() => {
+        state.runState = 'done'; state.extractionPhase = 'populated';
+        btn.innerHTML = `<svg class="icon icon-sm" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Done`;
+        btn.classList.remove('running'); btn.style.background = 'var(--green-fg)';
+        renderTablePage(); showToast(`Extraction complete — ${readyRows.length * state.columns.length} cells populated`);
+        setTimeout(() => { btn.innerHTML = `<svg class="icon icon-sm" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run all`; btn.style.background = ''; state.runState = 'idle'; }, 3000);
+      }, t + 600);
+    }
+
+    function simulateUpload() {
+      showToast('Uploading document…');
+      const fakeDoc = { id: 'r' + Date.now(), name: `Document_${Math.floor(Math.random() * 900) + 100}.pdf`, ready: false, pages: null, cells: {} };
+      state.tableRows.push(fakeDoc); renderTablePage();
+      setTimeout(() => { fakeDoc.ready = true; fakeDoc.pages = Math.floor(Math.random() * 30) + 3; renderTablePage(); showToast('Document parsed — ready for extraction'); }, 3000);
+    }
+
+    let saveTimer;
+    function saveIndicator() {
+      const ind = document.getElementById('save-indicator');
+      ind.style.opacity = '1'; ind.innerHTML = '<div style="width:6px;height:6px;border-radius:50%;border:1.5px solid var(--muted-fg);animation:spin 0.7s linear infinite;"></div> Saving…';
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => { ind.innerHTML = '<div class="save-dot"></div> Saved'; setTimeout(() => { ind.style.opacity = '0'; }, 2000); }, 600);
+      document.getElementById('sidebar-table-name').textContent = document.getElementById('table-title').value;
+    }
+
+    function showToast(msg) {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div'); t.className = 'toast';
+      t.innerHTML = `<svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;opacity:0.6;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>${msg}`;
+      c.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateY(6px) scale(0.96)'; t.style.transition = 'all 200ms'; setTimeout(() => t.remove(), 250); }, 3000);
+    }
+
+    // ── KEYBOARD ──
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        if (document.getElementById('add-col-modal').classList.contains('open')) { closeAddColumnModal(); return; }
+        if (document.getElementById('col-edit-modal').classList.contains('open')) { closeColumnEditModal(); return; }
+        if (document.getElementById('delete-modal').classList.contains('open')) { closeDeleteDialog(); return; }
+        if (state.viewerOpen) { closeViewer(); return; }
+        if (state.drawerOpen) { closeDrawer(); return; }
+      }
+      if (state.extractionPhase === 'populated' && state.selectedRow) {
+        const readyRows = state.tableRows.filter(r => r.ready);
+        const idx = readyRows.findIndex(r => r.id === state.selectedRow.id);
+        if (e.key === 'ArrowDown' && idx < readyRows.length - 1) { e.preventDefault(); selectRow(readyRows[idx + 1].id); }
+        if (e.key === 'ArrowUp' && idx > 0) { e.preventDefault(); selectRow(readyRows[idx - 1].id); }
+      }
+    });
+
+    document.getElementById('add-col-modal').addEventListener('click', function (e) { if (e.target === this) closeAddColumnModal(); });
+    document.getElementById('col-edit-modal').addEventListener('click', function (e) { if (e.target === this) closeColumnEditModal(); });
+    document.getElementById('delete-modal').addEventListener('click', function (e) { if (e.target === this) closeDeleteDialog(); });
+
+    goTo('landing');
+  </script>
+</body>
+
+</html>
