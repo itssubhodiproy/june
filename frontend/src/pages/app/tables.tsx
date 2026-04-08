@@ -76,7 +76,7 @@ export function TablesPage() {
     const optimisticTable: Table = {
       id: `temp_${Date.now()}`,
       workspace_id: workspaceId,
-      name: "Untitled Table",
+      name: `Untitled Table #${tables.length + 1}`,
       document_count: 0,
       column_count: 0,
       created_at: new Date().toISOString(),
@@ -88,7 +88,7 @@ export function TablesPage() {
     try {
       const newTable = await createTable({
         workspace_id: workspaceId,
-        name: "Untitled Table",
+        name: `Untitled Table #${tables.length + 1}`,
       })
       navigate(`/app/tables/${newTable.id}`)
     } catch (err) {
@@ -137,9 +137,9 @@ export function TablesPage() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden h-full bg-secondary/30">
       <header className="flex shrink-0 items-center justify-between border-b px-6 py-3">
-        <h1 className="text-lg font-semibold">Tables</h1>
+        <div className="text-lg font-semibold">Tables</div>
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -159,7 +159,7 @@ export function TablesPage() {
       {tables.length === 0 ? (
         <EmptyState onCreate={handleCreate} />
       ) : view === "grid" ? (
-        <div className="flex-1 overflow-y-auto bg-secondary/30 p-5">
+        <div className="flex-1 overflow-y-auto p-5">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
             {tables.map((table) => (
               <TableCard

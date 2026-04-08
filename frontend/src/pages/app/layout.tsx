@@ -1,8 +1,6 @@
 import { useState, type ComponentType } from "react"
-import { Outlet, NavLink, useLocation, useParams } from "react-router-dom"
+import { Outlet, NavLink } from "react-router-dom"
 import {
-  ChevronLeft,
-  LayoutGrid,
   BookOpen,
   MessageSquare,
   Settings,
@@ -15,11 +13,8 @@ import { useAuthActions, useUser } from "@/stores/auth-store"
 
 export function AppLayout() {
   const [expanded, setExpanded] = useState(true)
-  const location = useLocation()
-  const params = useParams()
   const user = useUser()
   const { logout } = useAuthActions()
-  const isTableRoute = location.pathname !== "/app/tables"
 
   return (
     <div className="flex min-h-svh overflow-hidden bg-background">
@@ -32,15 +27,15 @@ export function AppLayout() {
         <button
           type="button"
           onClick={() => setExpanded((value) => !value)}
-          className="flex h-12 items-center gap-2 border-b px-[14px] text-left transition-colors hover:bg-background/60"
+          className="flex h-12 w-full flex-shrink-0 items-center gap-[10px] overflow-hidden border-b px-[10px] text-left transition-colors hover:bg-background/60 w-1 cursor-ew-resize"
           aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
         >
-          <div className="size-6 overflow-hidden rounded-md">
-            <img src="/logo.jpg" alt="June" className="size-full object-cover" />
+          <div className="size-8 shrink-0 overflow-hidden rounded-md">
+            <img src="/logo-dark.png" alt="June" className="size-full object-contain" />
           </div>
           <span
             className={cn(
-              "truncate text-[15px] font-semibold tracking-[-0.02em] transition-all duration-150",
+              "whitespace-nowrap text-[15px] font-semibold tracking-[-0.02em] transition-all duration-150",
               expanded ? "translate-x-0 opacity-100" : "-translate-x-1 opacity-0"
             )}
           >
@@ -48,40 +43,24 @@ export function AppLayout() {
           </span>
         </button>
 
-        <nav className="flex flex-1 flex-col gap-px p-1.5">
-          {isTableRoute ? (
-            <>
-              <SidebarLink to="/app/tables" expanded={expanded} icon={ChevronLeft} label="All tables" />
-              <div className="h-1" />
-              <SidebarItem
-                expanded={expanded}
-                icon={Table2}
-                label={params.tableId ? "Table" : "Current table"}
-                active
-              />
-              <SidebarItem expanded={expanded} icon={BookOpen} label="Vault" soon disabled />
-            </>
-          ) : (
-            <>
-              <SidebarLink to="/app/tables" expanded={expanded} icon={LayoutGrid} label="Tables" end />
-              <SidebarItem expanded={expanded} icon={BookOpen} label="Vault" soon disabled />
-              <SidebarItem expanded={expanded} icon={MessageSquare} label="Assistant" soon disabled />
-            </>
-          )}
+        <nav className="flex flex-1 flex-col gap-px p-2">
+          <SidebarLink to="/app/tables" expanded={expanded} icon={Table2} label="Tables" />
+          <SidebarItem expanded={expanded} icon={BookOpen} label="Vault" soon disabled />
+          <SidebarItem expanded={expanded} icon={MessageSquare} label="Assistant" soon disabled />
         </nav>
 
-        <div className="border-t p-1.5">
+        <div className="border-t p-2">
           <SidebarItem expanded={expanded} icon={Settings} label="Settings" />
           <SidebarItem expanded={expanded} icon={User} label={user?.email ?? "Account"} subtle />
           <button
             type="button"
             onClick={logout}
-            className="flex h-[34px] w-full items-center gap-2 overflow-hidden rounded-md px-2 text-left text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+            className="flex h-[34px] w-full items-center gap-[10px] overflow-hidden rounded-md px-2 text-left text-muted-foreground transition-colors hover:bg-background hover:text-foreground cursor-pointer"
           >
             <LogOut className="size-[18px] shrink-0" />
             <span
               className={cn(
-                "truncate text-[13px] font-medium transition-all duration-150",
+                "whitespace-nowrap text-[13px] font-medium transition-all duration-150",
                 expanded ? "translate-x-0 opacity-100" : "-translate-x-1 opacity-0"
               )}
             >
@@ -153,7 +132,7 @@ function SidebarItem({
       {soon && (
         <span
           className={cn(
-            "rounded bg-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.02em] text-muted-foreground transition-all duration-150",
+            "shrink-0 rounded bg-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.02em] text-muted-foreground transition-all duration-150",
             expanded ? "translate-x-0 opacity-100" : "-translate-x-1 opacity-0"
           )}
         >
@@ -166,7 +145,7 @@ function SidebarItem({
 
 function sidebarItemClass(active: boolean) {
   return cn(
-    "flex h-[34px] items-center gap-2 overflow-hidden rounded-md px-2 text-[13px] text-muted-foreground transition-colors",
+    "flex h-[34px] items-center gap-[10px] overflow-hidden rounded-md px-2 text-[13px] text-muted-foreground transition-colors",
     active
       ? "bg-background text-foreground shadow-sm"
       : "hover:bg-background/80 hover:text-foreground"
@@ -175,7 +154,7 @@ function sidebarItemClass(active: boolean) {
 
 function sidebarLabelClass(expanded: boolean) {
   return cn(
-    "truncate text-[13px] font-medium transition-all duration-150",
+    "whitespace-nowrap text-[13px] font-medium transition-all duration-150",
     expanded ? "translate-x-0 opacity-100" : "-translate-x-1 opacity-0"
   )
 }
