@@ -23,7 +23,12 @@ class UserResponse(BaseModel):
     id: UUID
     email: str
     name: str
+    last_selected_workspace_id: UUID | None = None
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class UserPreferencesUpdate(BaseModel):
+    last_selected_workspace_id: UUID

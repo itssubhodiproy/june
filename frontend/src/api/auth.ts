@@ -27,6 +27,7 @@ export interface User {
   id: string
   email: string
   name: string
+  last_selected_workspace_id: string | null
   created_at: string
   updated_at: string
 }

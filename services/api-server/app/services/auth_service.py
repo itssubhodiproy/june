@@ -46,11 +46,12 @@ class AuthService:
             await self.db.flush()
 
             workspace_service = WorkspaceService(self.db)
-            await workspace_service._create_workspace(
+            workspace = await workspace_service._create_workspace(
                 user=user,
                 name="Personal Workspace",
                 is_personal=True,
             )
+            user.last_selected_workspace_id = workspace.id
 
             await self.db.commit()
         except IntegrityError:
