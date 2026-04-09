@@ -1,6 +1,6 @@
 "use client"
 
-import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,15 +18,13 @@ interface TableListRowProps {
 }
 
 export function TableListRow({ table, onDelete }: TableListRowProps) {
+  const navigate = useNavigate()
   return (
     <div
-      className="group relative grid grid-cols-[1fr_100px_100px_100px_40px] items-center border-b border-border px-4 py-3 transition-colors hover:bg-secondary/50"
+      onClick={() => navigate(`/app/tables/${table.id}`)}
+      aria-label={`Open ${table.name}`}
+      className="group relative grid grid-cols-[1fr_100px_100px_100px_40px] items-center border-b border-border px-4 py-3 transition-colors hover:bg-secondary/50 cursor-pointer"
     >
-      <Link
-        to={`/app/tables/${table.id}`}
-        className="absolute inset-0"
-        aria-label={`Open ${table.name}`}
-      />
 
       <span className="relative truncate text-sm font-medium">{table.name}</span>
       <span className="relative text-sm text-muted-foreground">{table.document_count}</span>

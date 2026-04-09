@@ -34,8 +34,7 @@ const useAuthStore = create<AuthState & { actions: AuthActions }>()((set) => ({
     },
 
     logout: () => {
-      clearToken()
-      set({ user: null, token: null })
+      forceLogout()
     },
 
     checkAuth: async () => {
@@ -48,12 +47,16 @@ const useAuthStore = create<AuthState & { actions: AuthActions }>()((set) => ({
         const user = await getMe()
         set({ user, token, isChecking: false })
       } catch {
-        clearToken()
-        set({ user: null, token: null, isChecking: false })
+        forceLogout()
       }
     },
   },
 }))
+
+export function forceLogout() {
+  clearToken()
+  useAuthStore.setState({ user: null, token: null, isChecking: false })
+}
 
 export function useUser() {
   return useAuthStore((s) => s.user)

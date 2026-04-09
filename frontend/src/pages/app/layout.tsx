@@ -17,7 +17,7 @@ export function AppLayout() {
   const { logout } = useAuthActions()
 
   return (
-    <div className="flex min-h-svh overflow-hidden bg-background">
+    <div className="flex h-svh overflow-hidden bg-background">
       <aside
         className={cn(
           "flex h-svh flex-col overflow-hidden border-r bg-muted transition-[width] duration-200 ease-out",

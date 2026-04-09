@@ -1,6 +1,6 @@
 "use client"
 
-import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,16 +18,14 @@ interface TableCardProps {
 }
 
 export function TableCard({ table, onDelete }: TableCardProps) {
+  const navigate = useNavigate()
+
   return (
     <div
-      className="group relative rounded-xl border border-border bg-card p-4 transition-all hover:border-foreground/20 hover:shadow-md"
+      onClick={() => navigate(`/app/tables/${table.id}`)}
+      aria-label={`Open ${table.name}`}
+      className="group relative rounded-xl border border-border bg-card p-4 transition-all hover:border-foreground/20 hover:shadow-md cursor-pointer"
     >
-      <Link
-        to={`/app/tables/${table.id}`}
-        className="absolute inset-0 rounded-xl"
-        aria-label={`Open ${table.name}`}
-      />
-
       <div className="relative mb-3 flex size-8 items-center justify-center rounded-lg bg-secondary">
         <Table2 className="size-4 text-muted-foreground" />
       </div>
