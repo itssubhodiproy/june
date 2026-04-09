@@ -1,8 +1,12 @@
-import type { Table } from "@/types/models"
+import type { Table, TableDetail } from "@/types/models"
 import { fetchWithAuth } from "./client"
 
 export async function getTables(workspaceId: string): Promise<Table[]> {
   return fetchWithAuth<Table[]>(`/api/tables?workspace_id=${workspaceId}`)
+}
+
+export async function getTable(tableId: string): Promise<TableDetail> {
+  return fetchWithAuth<TableDetail>(`/api/tables/${tableId}`)
 }
 
 export async function createTable(data: {
