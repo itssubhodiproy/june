@@ -27,3 +27,52 @@ class TableResponse(BaseModel):
 class TableListItem(TableResponse):
     document_count: int
     column_count: int
+
+
+class TableDocumentItem(BaseModel):
+    id: UUID
+    file_name: str
+    file_type: str
+    file_size: int
+    page_count: int | None
+    parse_status: str
+    added_at: datetime
+
+
+class TableColumnItem(BaseModel):
+    id: UUID
+    title: str
+    prompt: str
+    type: str
+    order: int
+
+
+class CellSourceReference(BaseModel):
+    chunk_id: str
+    page: int
+    section: str
+    quote: str
+
+
+class TableCellItem(BaseModel):
+    id: UUID
+    document_id: UUID
+    column_id: UUID
+    status: str
+    answer: str | None
+    reasoning: str | None
+    source_references: list[CellSourceReference]
+
+
+class TableDetailResponse(BaseModel):
+    id: UUID
+    workspace_id: UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime
+    documents: list[TableDocumentItem]
+    columns: list[TableColumnItem]
+    cells: list[TableCellItem]
+
+    class Config:
+        from_attributes = True

@@ -4,7 +4,9 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.cell import Cell
 from app.models.column import ColumnModel
+from app.models.document import Document
 from app.models.table import Table
 from app.models.table_document import TableDocument
 from app.models.user import User
@@ -100,6 +102,71 @@ class TableService:
             }
             for table, document_count, column_count in result.all()
         ]
+
+    async def get_table(self, *, user: User, table_id: UUID) -> dict:
+        table = await self._get_accessible_table(user=user, table_id=table_id)
+
+        document_result = await self.db.execute(
+            select(Document, TableDocument.added_at)
+            .join(TableDocument, TableDocument.document_id == Document.id)
+            .where(
+                TableDocument.table_id == table.id,
+                Document.deleted_at.is_(None),
+            )
+            .order_by(TableDocument.row_order.asc())
+        )
+        column_result = await self.db.execute(
+            select(ColumnModel)
+            .where(ColumnModel.table_id == table.id)
+            .order_by(ColumnModel.order.asc())
+        )
+        cell_result = await self.db.execute(
+            select(Cell)
+            .where(Cell.table_id == table.id)
+            .order_by(Cell.created_at.asc())
+        )
+
+        return {
+            "id": table.id,
+            "workspace_id": table.workspace_id,
+            "name": table.name,
+            "created_at": table.created_at,
+            "updated_at": table.updated_at,
+            "documents": [
+                {
+                    "id": document.id,
+                    "file_name": document.file_name,
+                    "file_type": document.file_type,
+                    "file_size": document.file_size,
+                    "page_count": document.page_count,
+                    "parse_status": document.parse_status,
+                    "added_at": added_at,
+                }
+                for document, added_at in document_result.all()
+            ],
+            "columns": [
+                {
+                    "id": column.id,
+                    "title": column.title,
+                    "prompt": column.prompt,
+                    "type": column.type,
+                    "order": column.order,
+                }
+                for column in column_result.scalars().all()
+            ],
+            "cells": [
+                {
+                    "id": cell.id,
+                    "document_id": cell.document_id,
+                    "column_id": cell.column_id,
+                    "status": cell.status,
+                    "answer": cell.answer,
+                    "reasoning": cell.reasoning,
+                    "source_references": cell.source_references or [],
+                }
+                for cell in cell_result.scalars().all()
+            ],
+        }
 
     async def update_table(self, *, user: User, table_id: UUID, name: str) -> Table:
         table = await self._get_accessible_table(user=user, table_id=table_id)
