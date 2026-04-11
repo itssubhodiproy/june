@@ -1,19 +1,11 @@
-import boto3
-from botocore.config import Config
+from botocore.client import BaseClient
 
 from app.config import settings
 
 
 class StorageService:
-    def __init__(self) -> None:
-        self.client = boto3.client(
-            "s3",
-            endpoint_url=settings.S3_ENDPOINT_URL,
-            aws_access_key_id=settings.S3_ACCESS_KEY,
-            aws_secret_access_key=settings.S3_SECRET_KEY,
-            config=Config(signature_version="s3v4"),
-            region_name="us-east-1",
-        )
+    def __init__(self, client: BaseClient) -> None:
+        self.client = client
 
     def create_presigned_upload_url(self, *, file_key: str, file_type: str) -> str:
         return self.client.generate_presigned_url(

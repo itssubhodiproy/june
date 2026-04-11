@@ -5,8 +5,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import select
 import jwt
+import boto3
+from botocore.config import Config
 from app.config import settings
 from app.models.user import User
+from app.services.storage_service import StorageService
 
 engine = create_async_engine(settings.DATABASE_URL, pool_size=10, max_overflow=20)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
@@ -17,6 +20,18 @@ security = HTTPBearer()
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+
+def get_storage_service() -> StorageService:
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=settings.S3_ENDPOINT_URL,
+        aws_access_key_id=settings.S3_ACCESS_KEY,
+        aws_secret_access_key=settings.S3_SECRET_KEY,
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",
+    )
+    return StorageService(s3_client)
 
 
 async def get_current_user(

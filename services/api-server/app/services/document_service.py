@@ -14,9 +14,9 @@ from app.services.storage_service import StorageService
 
 
 class DocumentService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, storage: StorageService):
         self.db = db
-        self.storage = StorageService()
+        self.storage = storage
 
     async def _get_accessible_table(self, *, user: User, table_id: UUID) -> Table:
         table = await self.db.scalar(
