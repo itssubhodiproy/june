@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
 
 from app.models.cell import Cell
 from app.models.column import ColumnModel
@@ -11,12 +12,14 @@ from app.models.table_document import TableDocument
 from app.models.user import User
 from app.models.user_workspace import UserWorkspace
 from app.services.storage_service import StorageService
+from app.utils.redis_tasks import enqueue_document_parsing
 
 
 class DocumentService:
-    def __init__(self, db: AsyncSession, storage: StorageService):
+    def __init__(self, db: AsyncSession, storage: StorageService, redis: Redis | None = None):
         self.db = db
         self.storage = storage
+        self.redis = redis
 
     async def _get_accessible_table(self, *, user: User, table_id: UUID) -> Table:
         table = await self.db.scalar(
@@ -31,6 +34,26 @@ class DocumentService:
         if not table:
             raise LookupError("Table not found")
         return table
+
+    async def _get_accessible_document(self, *, user: User, document_id: UUID) -> tuple[Document, UUID]:
+        result = await self.db.execute(
+            select(Document, Table.id)
+            .join(TableDocument, TableDocument.document_id == Document.id)
+            .join(Table, Table.id == TableDocument.table_id)
+            .join(UserWorkspace, UserWorkspace.workspace_id == Table.workspace_id)
+            .where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+                Table.deleted_at.is_(None),
+                UserWorkspace.user_id == user.id,
+            )
+            .order_by(TableDocument.added_at.asc())
+        )
+        row = result.first()
+        if not row:
+            raise LookupError("Document not found")
+        document, table_id = row
+        return document, table_id
     
 
     async def create_upload_url(
@@ -97,4 +120,36 @@ class DocumentService:
             "doc_id": document_id,
             "upload_url": upload_url,
             "file_key": file_key,
+        }
+
+    async def confirm_upload(
+        self,
+        *,
+        user: User,
+        document_id: UUID,
+    ) -> dict:
+        document, table_id = await self._get_accessible_document(user=user, document_id=document_id)
+
+        if document.parse_status != "not_ready":
+            raise ValueError("Document upload has already been confirmed")
+
+        if not self.storage.object_exists(file_key=document.file_key):
+            raise ValueError("Uploaded file not found")
+
+        if self.redis is None:
+            raise RuntimeError("Redis client not configured")
+
+        document.parse_status = "queued"
+        await self.db.commit()
+
+        await enqueue_document_parsing(
+            self.redis,
+            document_id=document.id,
+            file_key=document.file_key,
+            table_id=table_id,
+        )
+
+        return {
+            "doc_id": document.id,
+            "parse_status": document.parse_status,
         }

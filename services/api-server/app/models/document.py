@@ -24,7 +24,7 @@ class Document(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "parse_status IN ('not_ready', 'ready', 'error')",
+            "parse_status IN ('not_ready', 'queued', 'ready', 'error')",
             name="check_document_parse_status"
         ),
     )

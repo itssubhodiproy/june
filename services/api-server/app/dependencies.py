@@ -7,6 +7,7 @@ from sqlalchemy import select
 import jwt
 import boto3
 from botocore.config import Config
+from redis.asyncio import Redis
 from app.config import settings
 from app.models.user import User
 from app.services.storage_service import StorageService
@@ -32,6 +33,10 @@ def get_storage_service() -> StorageService:
         region_name="us-east-1",
     )
     return StorageService(s3_client)
+
+
+def get_redis_client() -> Redis:
+    return Redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 async def get_current_user(

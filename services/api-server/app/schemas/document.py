@@ -14,3 +14,8 @@ class DocumentUploadUrlResponse(BaseModel):
     doc_id: UUID
     upload_url: str
     file_key: str
+
+
+class DocumentConfirmResponse(BaseModel):
+    doc_id: UUID
+    parse_status: str
