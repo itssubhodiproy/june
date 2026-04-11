@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 
 import {
   createColumnHelper,
@@ -7,6 +7,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import { Plus } from "lucide-react"
 
 import { ColumnHeader } from "@/components/table/column-header"
@@ -30,7 +31,6 @@ interface TableGridProps {
 interface TableRow {
   id: string
   document: TableDocument
-  cells: Record<string, TableCell | undefined>
 }
 
 const columnHelper = createColumnHelper<TableRow>()
@@ -40,24 +40,21 @@ function getCellKey(documentId: string, columnId: string) {
 }
 
 export function TableGrid({ documents, columns, cells }: TableGridProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const cellsRef = useRef(cells)
+  cellsRef.current = cells
+
   const data = useMemo<TableRow[]>(
     () =>
       documents.order.map((documentId) => {
         const document = documents.byId[documentId]
-        const rowCells = Object.fromEntries(
-          columns.order.map((columnId) => [
-            columnId,
-            cells[getCellKey(documentId, columnId)],
-          ])
-        ) as Record<string, TableCell | undefined>
 
         return {
           id: documentId,
-          document,
-          cells: rowCells,
+          document
         }
       }),
-    [cells, columns, documents]
+    [documents]
   )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,7 +80,7 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
         columnHelper.display({
           id: columnId,
           header: () => <ColumnHeader column={columns.byId[columnId]} />,
-          cell: ({ row }) => <DataCell cell={row.original.cells[columnId]} />,
+          cell: ({ row }) => <DataCell cell={cellsRef.current[getCellKey(row.original.id, columnId)]} />,
           size: 320,
         })
       ),
@@ -112,10 +109,22 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
 
   const hasRows = data.length > 0
   const columnCount = table.getAllColumns().length
+  const rowVirtualizer = useVirtualizer({
+    count: table.getRowModel().rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 64,
+    overscan: 10,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0
+  const paddingBottom =
+    virtualRows.length > 0
+      ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
+      : 0
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden bg-secondary/30">
-      <div className="h-full overflow-auto px-6 py-5">
+      <div ref={scrollRef} className="h-full overflow-auto px-6 py-5">
         <div className="min-w-max rounded-[1.25rem] border bg-background shadow-sm">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10 bg-background">
@@ -149,37 +158,54 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
             </thead>
             <tbody>
               {hasRows ? (
-                table.getRowModel().rows.map((row, rowIndex) => (
-                  <tr
-                    key={row.id}
-                    className={cn("border-b last:border-b-0", rowIndex % 2 === 1 && "bg-secondary/20")}
-                  >
-                    {row.getVisibleCells().map((cell) => {
-                      const isGutter = cell.column.id === "gutter"
-                      const isDocument = cell.column.id === "document"
-                      const isAddColumn = cell.column.id === "add-column"
+                <>
+                  {paddingTop > 0 ? (
+                    <tr>
+                      <td colSpan={columnCount} style={{ height: paddingTop }} />
+                    </tr>
+                  ) : null}
+                  {virtualRows.map((virtualRow) => {
+                    const row = table.getRowModel().rows[virtualRow.index]
+                    const rowIndex = virtualRow.index
 
-                      return (
-                        <td
-                          key={cell.id}
-                          className={cn(
-                            "align-top",
-                            isGutter
-                              ? "border-r px-3 py-4"
-                              : isDocument
-                                ? "px-4 py-4"
-                                : isAddColumn
-                                  ? "border-l px-3 py-4"
-                                  : "border-l px-4 py-4"
-                          )}
-                          style={{ width: cell.column.getSize() }}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))
+                    return (
+                      <tr
+                        key={row.id}
+                        className={cn("border-b last:border-b-0", rowIndex % 2 === 1 && "bg-secondary/20")}
+                      >
+                        {row.getVisibleCells().map((cell) => {
+                          const isGutter = cell.column.id === "gutter"
+                          const isDocument = cell.column.id === "document"
+                          const isAddColumn = cell.column.id === "add-column"
+
+                          return (
+                            <td
+                              key={cell.id}
+                              className={cn(
+                                "align-top",
+                                isGutter
+                                  ? "border-r px-3 py-4"
+                                  : isDocument
+                                    ? "px-4 py-4"
+                                    : isAddColumn
+                                      ? "border-l px-3 py-4"
+                                      : "border-l px-4 py-4"
+                              )}
+                              style={{ width: cell.column.getSize() }}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    )
+                  })}
+                  {paddingBottom > 0 ? (
+                    <tr>
+                      <td colSpan={columnCount} style={{ height: paddingBottom }} />
+                    </tr>
+                  ) : null}
+                </>
               ) : (
                 <tr>
                   <td colSpan={columnCount} className="px-6 py-16 text-center">
@@ -188,11 +214,6 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
                       <p className="mt-1 text-sm text-muted-foreground">
                         Upload documents to start populating rows in this table.
                       </p>
-                      {columns.order.length === 0 ? (
-                        <p className="mt-4 text-xs text-muted-foreground">
-                          Columns will appear here once they are added.
-                        </p>
-                      ) : null}
                     </div>
                   </td>
                 </tr>
