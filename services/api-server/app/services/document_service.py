@@ -55,6 +55,17 @@ class DocumentService:
             raise LookupError("Document not found")
         document, table_id = row
         return document, table_id
+
+    async def _get_document_by_id(self, *, document_id: UUID) -> Document:
+        document = await self.db.scalar(
+            select(Document).where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+            )
+        )
+        if not document:
+            raise LookupError("Document not found")
+        return document
     
 
     async def create_upload_url(
@@ -158,11 +169,10 @@ class DocumentService:
     async def store_chunks(
         self,
         *,
-        user: User,
         document_id: UUID,
         chunks: list[dict],
     ) -> dict:
-        document, _ = await self._get_accessible_document(user=user, document_id=document_id)
+        document = await self._get_document_by_id(document_id=document_id)
 
         await self.db.execute(
             delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
@@ -188,13 +198,12 @@ class DocumentService:
     async def update_document(
         self,
         *,
-        user: User,
         document_id: UUID,
         parse_status: str | None = None,
         page_count: int | None = None,
         error_message: str | None = None,
     ) -> Document:
-        document, _ = await self._get_accessible_document(user=user, document_id=document_id)
+        document = await self._get_document_by_id(document_id=document_id)
 
         if parse_status is not None:
             document.parse_status = parse_status

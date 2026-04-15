@@ -5,7 +5,13 @@ from redis.asyncio import Redis
 
 from uuid import UUID
 
-from app.dependencies import get_current_user, get_db, get_redis_client, get_storage_service
+from app.dependencies import (
+    get_current_user,
+    get_db,
+    get_redis_client,
+    get_storage_service,
+    require_internal_service,
+)
 from app.models.user import User
 from app.schemas.document import (
     DocumentChunksCreateRequest,
@@ -66,14 +72,13 @@ async def confirm_document_upload(
 async def store_document_chunks(
     doc_id: UUID,
     data: DocumentChunksCreateRequest,
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
+    _: None = Depends(require_internal_service),
 ):
     document_service = DocumentService(db, storage)
     try:
         return await document_service.store_chunks(
-            user=current_user,
             document_id=doc_id,
             chunks=[chunk.model_dump() for chunk in data.chunks],
         )
@@ -85,14 +90,13 @@ async def store_document_chunks(
 async def update_document(
     doc_id: UUID,
     data: DocumentUpdateRequest,
-    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     storage: StorageService = Depends(get_storage_service),
+    _: None = Depends(require_internal_service),
 ):
     document_service = DocumentService(db, storage)
     try:
         return await document_service.update_document(
-            user=current_user,
             document_id=doc_id,
             parse_status=data.parse_status,
             page_count=data.page_count,
