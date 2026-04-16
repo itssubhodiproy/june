@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.config import settings
+
 
 class BoundingBoxItem(BaseModel):
     text: str
@@ -25,7 +27,9 @@ class DocumentChunkCreate(BaseModel):
     page_number: int = Field(ge=1)
     section: str | None = Field(default=None, max_length=255)
     bbox: BoundingBox
-    embedding: list[float] = Field(min_length=1)
+    embedding: list[float] = Field(
+        min_length=settings.EMBEDDING_DIMENSION, max_length=settings.EMBEDDING_DIMENSION
+    )
 
 
 class DocumentChunksCreateRequest(BaseModel):

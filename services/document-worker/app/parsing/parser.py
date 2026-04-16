@@ -29,22 +29,20 @@ class LiteParseParser(DocumentParser):
             items = [
                 ParsedTextItem(
                     text=item.text,
-                    x=float(item.x),
-                    y=float(item.y),
-                    width=float(item.width),
-                    height=float(item.height),
+                    x=item.x,
+                    y=item.y,
+                    width=item.width,
+                    height=item.height,
                 )
                 for item in (page.textItems or [])
             ]
 
             pages.append(
                 ParsedPage(
-                    page_number=int(
-                        page.pageNum if hasattr(page, "pageNum") else index
-                    ),
+                    page_number=getattr(page, "pageNum", index),
                     text=page.text or "",
-                    page_width=float(getattr(page, "width", 0) or 0),
-                    page_height=float(getattr(page, "height", 0) or 0),
+                    page_width=page.width,
+                    page_height=page.height,
                     text_items=items,
                 )
             )

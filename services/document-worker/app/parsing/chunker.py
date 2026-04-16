@@ -24,8 +24,6 @@ class DocumentChunker:
 
     def _chunk_page(self, page: ParsedPage, *, start_index: int) -> list[ChunkDraft]:
         source_text = self._build_page_text(page)
-        if not source_text.strip():
-            return []
 
         item_ranges = self._build_item_ranges(page.text_items)
         sentence_ranges = self._split_sentences(source_text)
@@ -36,36 +34,41 @@ class DocumentChunker:
         current_tokens = 0
 
         for sentence_start, sentence_end in sentence_ranges:
-            sentence_text = source_text[sentence_start:sentence_end].strip()
-            if not sentence_text:
-                continue
+            for part_start, part_end in self._split_oversized_range(
+                source_text,
+                sentence_start,
+                sentence_end,
+            ):
+                sentence_text = source_text[part_start:part_end].strip()
+                if not sentence_text:
+                    continue
 
-            sentence_tokens = self._estimate_tokens(sentence_text)
-            if current_start is None:
-                current_start = sentence_start
-                current_end = sentence_end
-                current_tokens = sentence_tokens
-                continue
+                sentence_tokens = self._estimate_word_count(sentence_text)
+                if current_start is None:
+                    current_start = part_start
+                    current_end = part_end
+                    current_tokens = sentence_tokens
+                    continue
 
-            next_tokens = current_tokens + sentence_tokens
-            if current_tokens >= self.target_tokens or next_tokens > self.hard_cap_tokens:
-                chunks.append(
-                    self._build_chunk(
-                        page=page,
-                        source_text=source_text,
-                        item_ranges=item_ranges,
-                        start=current_start,
-                        end=current_end or current_start,
-                        chunk_index=start_index + len(chunks),
+                next_tokens = current_tokens + sentence_tokens
+                if current_tokens >= self.target_tokens or next_tokens > self.hard_cap_tokens:
+                    chunks.append(
+                        self._build_chunk(
+                            page=page,
+                            source_text=source_text,
+                            item_ranges=item_ranges,
+                            start=current_start,
+                            end=current_end or current_start,
+                            chunk_index=start_index + len(chunks),
+                        )
                     )
-                )
-                current_start = sentence_start
-                current_end = sentence_end
-                current_tokens = sentence_tokens
-                continue
+                    current_start = part_start
+                    current_end = part_end
+                    current_tokens = sentence_tokens
+                    continue
 
-            current_end = sentence_end
-            current_tokens = next_tokens
+                current_end = part_end
+                current_tokens = next_tokens
 
         if current_start is not None:
             chunks.append(
@@ -109,8 +112,6 @@ class DocumentChunker:
         )
 
     def _build_page_text(self, page: ParsedPage) -> str:
-        if page.text.strip():
-            return page.text.strip()
         return " ".join(item.text.strip() for item in page.text_items if item.text.strip())
 
     def _split_sentences(self, text: str) -> list[tuple[int, int]]:
@@ -125,8 +126,41 @@ class DocumentChunker:
             ranges.append((last_index, len(text)))
         return ranges
 
-    def _estimate_tokens(self, text: str) -> int:
+    def _estimate_word_count(self, text: str) -> int:
         return len(text.split())
+
+    def _split_oversized_range(
+        self,
+        text: str,
+        start: int,
+        end: int,
+    ) -> list[tuple[int, int]]:
+        segment = text[start:end]
+        if self._estimate_word_count(segment) <= self.hard_cap_tokens:
+            return [(start, end)]
+
+        parts: list[tuple[int, int]] = []
+        words = list(re.finditer(r"\S+", segment))
+        if not words:
+            return [(start, end)]
+
+        part_start = start + words[0].start()
+        token_count = 0
+
+        for index, word in enumerate(words):
+            token_count += 1
+            is_last = index == len(words) - 1
+            if token_count < self.hard_cap_tokens and not is_last:
+                continue
+
+            part_end = start + word.end()
+            parts.append((part_start, part_end))
+
+            if not is_last:
+                part_start = start + words[index + 1].start()
+                token_count = 0
+
+        return parts
 
     def _build_item_ranges(self, items: list[ParsedTextItem]) -> list[tuple[int, int, ParsedTextItem]]:
         ranges: list[tuple[int, int, ParsedTextItem]] = []
@@ -138,5 +172,7 @@ class DocumentChunker:
             start = cursor
             end = start + len(item_text)
             ranges.append((start, end, item))
+            # Keep this in sync with _build_page_text(), which joins normalized
+            # text items with exactly one space.
             cursor = end + (1 if index < len(items) - 1 else 0)
         return ranges

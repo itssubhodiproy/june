@@ -12,7 +12,7 @@ Background queue consumer that turns raw PDFs into searchable, citation-ready co
 
 ## Tech Stack
 
-- **Runtime:** Python 3.12
+- **Runtime:** Python 3.13+
 - **PDF Parsing:** LiteParse (Python wrapper over Node.js CLI)
 - **Embeddings:** Cohere `embed-v4.0` (abstracted for swap)
 - **Queue:** Redis-native library (BRPOP consumer)
@@ -127,11 +127,9 @@ Embedding API calls are IO-bound and use a separate semaphore (`MAX_CONCURRENT_E
 5. Generate embeddings
    embedding_client.embed([chunk.text for chunk in chunks])
    Batched: 
-   <!-- Note: We are doing this cause we're on budget, and depend on cohere rate limit for V1, but it should be built in a way so that we can easily swap to V2 -->
-    - up to 96 texts per Cohere API call (Cohere rate-limit)
-    - up to 96 texts per Cohere API call (Cohere limit)
-    - up to 2048 texts per API call (V2)
-   (~1-5 seconds)
+    - current implementation: up to 96 texts per Cohere API call
+    - embedding client is abstracted so a future V2-style backend can raise this to up to 2048 texts per call without changing the pipeline
+    (~1-5 seconds)
 
 6. Store chunks via API Server
    POST /api/documents/{doc_id}/chunks
