@@ -31,8 +31,7 @@ class ApiClient:
         payload: dict[str, object] = {"parse_status": parse_status}
         if page_count is not None:
             payload["page_count"] = page_count
-        if error_message is not None:
-            payload["error_message"] = error_message
+        payload["error_message"] = error_message
 
         response = await self.client.patch(
             f"/api/documents/{document_id}",
