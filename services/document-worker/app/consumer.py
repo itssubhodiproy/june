@@ -36,6 +36,10 @@ class Consumer:
                     )
                 except asyncio.CancelledError:
                     break
+                except Exception:
+                    logging.exception("Queue pop failed; continuing")
+                    await asyncio.sleep(1)
+                    continue
 
                 if task is None:
                     continue
@@ -62,10 +66,16 @@ class Consumer:
             if exc.retryable and task.retry_count < settings.MAX_RETRIES:
                 await self._retry_task(task, redis)
             else:
-                await handler._handle_failure(
-                    task.document_id,
-                    task.table_id,
-                )
+                try:
+                    await handler._handle_failure(
+                        task.document_id,
+                        task.table_id,
+                    )
+                except Exception:
+                    logging.exception(
+                        "Failed to report terminal failure for document %s",
+                        task.document_id,
+                    )
                 logging.error(
                     "Document %s failed: %s",
                     task.document_id,
@@ -75,10 +85,16 @@ class Consumer:
             if task.retry_count < settings.MAX_RETRIES:
                 await self._retry_task(task, redis)
             else:
-                await handler._handle_failure(
-                    task.document_id,
-                    task.table_id,
-                )
+                try:
+                    await handler._handle_failure(
+                        task.document_id,
+                        task.table_id,
+                    )
+                except Exception:
+                    logging.exception(
+                        "Failed to report terminal failure for document %s",
+                        task.document_id,
+                    )
                 logging.exception(
                     "Document %s failed permanently after %d retries",
                     task.document_id,

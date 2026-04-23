@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     REDIS_URL: str
     API_SERVER_URL: str
-    INTERNAL_SERVICE_TOKEN: str = "dev-internal-service-token"
+    INTERNAL_SERVICE_TOKEN: str
 
     S3_ENDPOINT_URL: str
     S3_ACCESS_KEY: str
