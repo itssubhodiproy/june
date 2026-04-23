@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, CheckConstraint, Text
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from uuid import uuid4
@@ -17,7 +17,6 @@ class Document(Base):
     file_size = Column(BigInteger, nullable=False)
     page_count = Column(Integer, nullable=True)
     parse_status = Column(String(20), nullable=False, default="not_ready")
-    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)

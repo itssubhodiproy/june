@@ -71,4 +71,3 @@ class DocumentErrorEvent(BaseModel):
     type: Literal["doc_error"]
     document_id: str
     table_id: str
-    error_message: str

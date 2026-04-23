@@ -100,7 +100,6 @@ async def update_document(
             document_id=doc_id,
             parse_status=data.parse_status,
             page_count=data.page_count,
-            error_message=data.error_message,
         )
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

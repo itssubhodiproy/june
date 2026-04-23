@@ -201,7 +201,6 @@ class DocumentService:
         document_id: UUID,
         parse_status: str | None = None,
         page_count: int | None = None,
-        error_message: str | None = None,
     ) -> Document:
         document = await self._get_document_by_id(document_id=document_id)
 
@@ -209,8 +208,6 @@ class DocumentService:
             document.parse_status = parse_status
         if page_count is not None:
             document.page_count = page_count
-        if error_message is not None:
-            document.error_message = error_message
 
         await self.db.commit()
         await self.db.refresh(document)

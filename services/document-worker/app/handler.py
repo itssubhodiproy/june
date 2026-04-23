@@ -1,8 +1,8 @@
-from app.clients.api_client import ApiClient
 import asyncio
 import logging
 from dataclasses import dataclass
 
+from app.clients.api_client import ApiClient
 from app.clients.redis_client import RedisClient
 from app.clients.s3_client import S3Client
 from app.config import settings
@@ -50,7 +50,7 @@ class DocumentHandler:
         )
 
         try:
-            pdf_bytes = self._deps.s3.download(task.file_key)
+            pdf_bytes = await asyncio.to_thread(self._deps.s3.download, task.file_key)
 
             parsed = await self._parser.parse(pdf_bytes)
 
@@ -81,7 +81,6 @@ class DocumentHandler:
                 doc_id,
                 parse_status="ready",
                 page_count=len(parsed.pages),
-                error_message=None,
             )
 
             await self._deps.redis.publish_ready(
@@ -93,12 +92,10 @@ class DocumentHandler:
                 )
             )
         except DocumentProcessingError:
-            await self._handle_failure(doc_id, table_id)
             raise
-        except Exception:
+        except Exception as exc:
             logging.exception("Unexpected error processing document %s", doc_id)
-            await self._handle_failure(doc_id, table_id)
-            raise
+            raise DocumentProcessingError(str(exc), retryable=True) from exc
 
     async def _embed_chunks(self, texts: list[str]) -> list[list[float]]:
         async with self._embed_semaphore:
@@ -109,13 +106,9 @@ class DocumentHandler:
         document_id: str,
         table_id: str,
     ) -> None:
-        error_msg = "Processing failed"
-        parse_status = "error"
-
         await self._deps.api.update_document(
             document_id,
-            parse_status=parse_status,
-            error_message=error_msg,
+            parse_status="error",
         )
 
         await self._deps.redis.publish_error(
@@ -123,6 +116,5 @@ class DocumentHandler:
                 type="doc_error",
                 document_id=document_id,
                 table_id=table_id,
-                error_message=error_msg,
             )
         )

@@ -61,7 +61,6 @@ class DocumentConfirmResponse(BaseModel):
 class DocumentUpdateRequest(BaseModel):
     parse_status: Literal["not_ready", "queued", "ready", "error"] | None = None
     page_count: int | None = Field(default=None, ge=1)
-    error_message: str | None = None
 
 
 class DocumentUpdateResponse(BaseModel):

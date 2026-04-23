@@ -11,6 +11,8 @@ from app.types import DocumentParsingTask
 
 
 class Consumer:
+    _POP_TIMEOUT_SECONDS = 1
+
     def __init__(self) -> None:
         self._shutdown = asyncio.Event()
 
@@ -29,9 +31,14 @@ class Consumer:
         try:
             while not self._shutdown.is_set():
                 try:
-                    task = await redis.pop_document_task()
+                    task = await redis.pop_document_task(
+                        timeout=self._POP_TIMEOUT_SECONDS
+                    )
                 except asyncio.CancelledError:
                     break
+
+                if task is None:
+                    continue
 
                 await self._process_task(task, redis, handler)
         finally:
@@ -55,6 +62,10 @@ class Consumer:
             if exc.retryable and task.retry_count < settings.MAX_RETRIES:
                 await self._retry_task(task, redis)
             else:
+                await handler._handle_failure(
+                    task.document_id,
+                    task.table_id,
+                )
                 logging.error(
                     "Document %s failed: %s",
                     task.document_id,
@@ -64,6 +75,10 @@ class Consumer:
             if task.retry_count < settings.MAX_RETRIES:
                 await self._retry_task(task, redis)
             else:
+                await handler._handle_failure(
+                    task.document_id,
+                    task.table_id,
+                )
                 logging.exception(
                     "Document %s failed permanently after %d retries",
                     task.document_id,
@@ -72,17 +87,13 @@ class Consumer:
 
     async def _retry_task(self, task: DocumentParsingTask, redis: RedisClient) -> None:
         retry_count = task.retry_count + 1
-        delay = 2**retry_count * 5
 
         logging.info(
-            "Retrying document %s in %ds (attempt %d/%d)",
+            "Retrying document %s immediately (attempt %d/%d)",
             task.document_id,
-            delay,
             retry_count,
             settings.MAX_RETRIES,
         )
-
-        await asyncio.sleep(delay)
 
         retry_task = DocumentParsingTask(
             task_id=task.task_id,
@@ -91,4 +102,4 @@ class Consumer:
             table_id=task.table_id,
             retry_count=retry_count,
         )
-        await redis.client.lpush(settings.QUEUE_NAME, retry_task.model_dump_json())
+        await redis.enqueue_document_task(retry_task)

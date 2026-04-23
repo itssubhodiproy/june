@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     API_SERVER_URL: str = "http://localhost:8000"
     CORS_ORIGINS: str = "http://localhost:3000"
     JWT_SECRET: str
-    INTERNAL_SERVICE_TOKEN: str
+    INTERNAL_SERVICE_TOKEN: str = "dev-internal-service-token"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_DAYS: int = 7
 
