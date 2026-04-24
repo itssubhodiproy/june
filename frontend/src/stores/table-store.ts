@@ -21,6 +21,12 @@ interface TableStore {
   columns: OrderedItems<TableColumn>
   cells: Record<string, TableCell>
   hydrateTable: (payload: TableDetail) => void
+  addDocumentOptimistic: (document: TableDocument) => void
+  updateDocumentStatus: (
+    documentId: string,
+    status: TableDocument["parse_status"],
+    pageCount?: number | null
+  ) => void
   clearTable: () => void
 }
 
@@ -74,6 +80,46 @@ export const useTableStore = create<TableStore>()((set) => ({
       cells,
     })
   },
+  addDocumentOptimistic: (document) => {
+    set((state) => {
+      if (state.documents.byId[document.id]) {
+        return state
+      }
+
+      return {
+        documents: {
+          order: [...state.documents.order, document.id],
+          byId: {
+            ...state.documents.byId,
+            [document.id]: document,
+          },
+        },
+      }
+    })
+  },
+  updateDocumentStatus: (documentId, status, pageCount) => {
+    set((state) => {
+      const document = state.documents.byId[documentId]
+
+      if (!document) {
+        return state
+      }
+
+      return {
+        documents: {
+          order: state.documents.order,
+          byId: {
+            ...state.documents.byId,
+            [documentId]: {
+              ...document,
+              parse_status: status,
+              page_count: pageCount ?? document.page_count,
+            },
+          },
+        },
+      }
+    })
+  },
   clearTable: () => {
     set({
       table: null,
@@ -102,6 +148,14 @@ export function useTableCells() {
 
 export function useHydrateTable() {
   return useTableStore((state) => state.hydrateTable)
+}
+
+export function useAddDocumentOptimistic() {
+  return useTableStore((state) => state.addDocumentOptimistic)
+}
+
+export function useUpdateDocumentStatus() {
+  return useTableStore((state) => state.updateDocumentStatus)
 }
 
 export function useClearTable() {

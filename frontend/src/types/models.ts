@@ -14,7 +14,7 @@ export interface TableDocument {
   file_type: string
   file_size: number
   page_count: number | null
-  parse_status: "not_ready" | "ready" | "error"
+  parse_status: "not_ready" | "queued" | "ready" | "error"
   added_at: string
 }
 
