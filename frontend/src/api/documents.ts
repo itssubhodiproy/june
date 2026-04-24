@@ -37,3 +37,9 @@ export async function confirmDocumentUpload(docId: string): Promise<DocumentConf
     body: JSON.stringify({}),
   })
 }
+
+export async function deleteDocument(tableId: string, docId: string): Promise<void> {
+  return fetchWithAuth<void>(`/api/tables/${tableId}/documents/${docId}`, {
+    method: "DELETE",
+  })
+}

@@ -179,3 +179,36 @@ class TableService:
         table = await self._get_accessible_table(user=user, table_id=table_id)
         table.deleted_at = datetime.now(timezone.utc)
         await self.db.commit()
+
+    async def remove_document(self, *, user: User, table_id: UUID, document_id: UUID) -> None:
+        table = await self._get_accessible_table(user=user, table_id=table_id)
+        
+        await self.db.execute(
+            Cell.__table__.delete().where(
+                Cell.table_id == table.id,
+                Cell.document_id == document_id,
+            )
+        )
+        
+        result = await self.db.execute(
+            TableDocument.__table__.delete().where(
+                TableDocument.table_id == table.id,
+                TableDocument.document_id == document_id,
+            )
+        )
+        if result.rowcount == 0:
+            raise LookupError("Document association not found in this table")
+            
+        remaining_tables = await self.db.scalar(
+            select(func.count(TableDocument.id)).where(
+                TableDocument.document_id == document_id,
+            )
+        )
+        if remaining_tables == 0:
+            doc = await self.db.scalar(
+                select(Document).where(Document.id == document_id)
+            )
+            if doc:
+                doc.deleted_at = datetime.now(timezone.utc)
+                
+        await self.db.commit()

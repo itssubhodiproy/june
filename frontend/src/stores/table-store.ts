@@ -27,6 +27,10 @@ interface TableStore {
     status: TableDocument["parse_status"],
     pageCount?: number | null
   ) => void
+  deleteDocument: (documentId: string) => void
+  addColumn: (column: TableColumn) => void
+  updateColumn: (columnId: string, updates: Partial<TableColumn>) => void
+  deleteColumn: (columnId: string) => void
   clearTable: () => void
 }
 
@@ -86,6 +90,21 @@ export const useTableStore = create<TableStore>()((set) => ({
         return state
       }
 
+      // Create empty cells for every existing column
+      const newCells = { ...state.cells }
+      for (const colId of state.columns.order) {
+        const key = getCellKey(document.id, colId)
+        newCells[key] = {
+          id: `temp_${key}`,
+          document_id: document.id,
+          column_id: colId,
+          status: "empty",
+          answer: null,
+          reasoning: null,
+          source_references: [],
+        }
+      }
+
       return {
         documents: {
           order: [...state.documents.order, document.id],
@@ -94,6 +113,7 @@ export const useTableStore = create<TableStore>()((set) => ({
             [document.id]: document,
           },
         },
+        cells: newCells,
       }
     })
   },
@@ -117,6 +137,108 @@ export const useTableStore = create<TableStore>()((set) => ({
             },
           },
         },
+      }
+    })
+  },
+  deleteDocument: (documentId) => {
+    set((state) => {
+      const newCells: Record<string, TableCell> = {}
+      for (const [key, cell] of Object.entries(state.cells)) {
+        if (cell.document_id !== documentId) {
+          newCells[key] = cell
+        }
+      }
+
+      const remainingById = { ...state.documents.byId }
+      delete remainingById[documentId]
+
+      return {
+        documents: {
+          order: state.documents.order.filter((id) => id !== documentId),
+          byId: remainingById,
+        },
+        cells: newCells,
+      }
+    })
+  },
+  addColumn: (column) => {
+    set((state) => {
+      if (state.columns.byId[column.id]) {
+        return state
+      }
+
+      // Create empty cells for every existing document
+      const newCells = { ...state.cells }
+      for (const docId of state.documents.order) {
+        const key = getCellKey(docId, column.id)
+        newCells[key] = {
+          id: `temp_${key}`,
+          document_id: docId,
+          column_id: column.id,
+          status: "empty",
+          answer: null,
+          reasoning: null,
+          source_references: [],
+        }
+      }
+
+      return {
+        columns: {
+          order: [...state.columns.order, column.id],
+          byId: { ...state.columns.byId, [column.id]: column },
+        },
+        cells: newCells,
+      }
+    })
+  },
+  updateColumn: (columnId, updates) => {
+    set((state) => {
+      const column = state.columns.byId[columnId]
+      if (!column) return state
+
+      const promptChanged = updates.prompt !== undefined && updates.prompt !== column.prompt
+      const typeChanged = updates.type !== undefined && updates.type !== column.type
+
+      const updatedColumn = { ...column, ...updates }
+
+      let newCells = state.cells
+      if (promptChanged || typeChanged) {
+        newCells = { ...state.cells }
+        for (const key of Object.keys(newCells)) {
+          const cell = newCells[key]
+          if (cell.column_id === columnId && cell.status === "completed") {
+            newCells[key] = { ...cell, status: "stale" }
+          }
+        }
+      }
+
+      return {
+        columns: {
+          order: state.columns.order,
+          byId: { ...state.columns.byId, [columnId]: updatedColumn },
+        },
+        cells: newCells,
+      }
+    })
+  },
+  deleteColumn: (columnId) => {
+    set((state) => {
+      const newCells: Record<string, TableCell> = {}
+      for (const [key, cell] of Object.entries(state.cells)) {
+        if (cell.column_id !== columnId) {
+          newCells[key] = cell
+        }
+      }
+
+      const remainingById = { ...state.columns.byId }
+      delete remainingById[columnId]
+
+      return {
+        columns: {
+          order: state.columns.order.filter((id) => id !== columnId),
+          byId: remainingById,
+        },
+        cells: newCells,
       }
     })
   },
@@ -156,6 +278,22 @@ export function useAddDocumentOptimistic() {
 
 export function useUpdateDocumentStatus() {
   return useTableStore((state) => state.updateDocumentStatus)
+}
+
+export function useAddColumn() {
+  return useTableStore((state) => state.addColumn)
+}
+
+export function useUpdateColumn() {
+  return useTableStore((state) => state.updateColumn)
+}
+
+export function useDeleteColumn() {
+  return useTableStore((state) => state.deleteColumn)
+}
+
+export function useDeleteDocument() {
+  return useTableStore((state) => state.deleteDocument)
 }
 
 export function useClearTable() {

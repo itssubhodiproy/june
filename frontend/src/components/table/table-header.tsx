@@ -9,6 +9,7 @@ interface TableHeaderProps {
   isUploading?: boolean
   uploadError?: string | null
   onSelectFiles: (files: FileList) => void
+  onAddColumn: () => void
 }
 
 export function TableHeader({
@@ -16,6 +17,7 @@ export function TableHeader({
   isUploading = false,
   uploadError = null,
   onSelectFiles,
+  onAddColumn,
 }: TableHeaderProps) {
   return (
     <header className="flex shrink-0 flex-col gap-2 border-b bg-background px-6 py-3">
@@ -31,7 +33,7 @@ export function TableHeader({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <UploadButton onSelectFiles={onSelectFiles} isUploading={isUploading} />
-          <Button type="button" variant="outline" size="sm" disabled>
+          <Button type="button" variant="outline" size="sm" onClick={onAddColumn}>
             <Plus className="size-4" data-icon="inline-start" />
             Column
           </Button>
@@ -45,3 +47,4 @@ export function TableHeader({
     </header>
   )
 }
+

@@ -1,11 +1,17 @@
-import { useState } from "react"
+import { useRef, useState, type DragEvent } from "react"
 
 import {
   confirmDocumentUpload,
   createDocumentUploadUrl,
   uploadDocumentToStorage,
+  deleteDocument as apiDeleteDocument,
 } from "@/api/documents"
-import { useAddDocumentOptimistic, useUpdateDocumentStatus } from "@/stores/table-store"
+import {
+  useAddDocumentOptimistic,
+  useUpdateDocumentStatus,
+  useDeleteDocument,
+  useTableDocuments,
+} from "@/stores/table-store"
 
 const PDF_MIME_TYPE = "application/pdf"
 
@@ -20,11 +26,24 @@ function toFilesArray(files: FileList | File[]) {
   return Array.isArray(files) ? files : Array.from(files)
 }
 
+function hasDragFiles(event: DragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes("Files")
+}
+
 export function useUpload(tableId?: string) {
   const addDocumentOptimistic = useAddDocumentOptimistic()
+  const storeDeleteDocument = useDeleteDocument()
+  const documents = useTableDocuments()
   const updateDocumentStatus = useUpdateDocumentStatus()
   const [isUploading, setIsUploading] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
+  const [isDragActive, setIsDragActive] = useState(false)
+  const dragDepthRef = useRef(0)
+  const activeUploadsRef = useRef(0)
+
+  function clearLastError() {
+    setLastError(null)
+  }
 
   async function startUpload(files: FileList | File[]) {
     if (!tableId) {
@@ -42,6 +61,7 @@ export function useUpload(tableId?: string) {
       return
     }
 
+    activeUploadsRef.current += 1
     setIsUploading(true)
     setLastError(null)
 
@@ -101,14 +121,73 @@ export function useUpload(tableId?: string) {
 
       await Promise.all(executing)
     } finally {
-      setIsUploading(false)
+      activeUploadsRef.current = Math.max(0, activeUploadsRef.current - 1)
+
+      if (activeUploadsRef.current === 0) {
+        setIsUploading(false)
+      }
+    }
+  }
+
+  // Drag-and-drop handlers
+  const dragHandlers = {
+    onDragEnter(event: DragEvent<HTMLElement>) {
+      if (!hasDragFiles(event)) return
+      event.preventDefault()
+      dragDepthRef.current += 1
+      clearLastError()
+      setIsDragActive(true)
+    },
+    onDragOver(event: DragEvent<HTMLElement>) {
+      if (!hasDragFiles(event)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = "copy"
+    },
+    onDragLeave(event: DragEvent<HTMLElement>) {
+      if (!hasDragFiles(event)) return
+      event.preventDefault()
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+      if (dragDepthRef.current === 0) {
+        setIsDragActive(false)
+      }
+    },
+    onDrop(event: DragEvent<HTMLElement>) {
+      if (!hasDragFiles(event)) return
+      event.preventDefault()
+      dragDepthRef.current = 0
+      setIsDragActive(false)
+      const { files } = event.dataTransfer
+      if (files.length > 0) {
+        void startUpload(files)
+      }
+    },
+  }
+
+  async function handleDeleteDocument(documentId: string) {
+    if (!tableId) return
+    if (!window.confirm("Remove this document from the table and delete all its cells?")) return
+    
+    const documentSnapshot = documents.byId[documentId]
+    if (!documentSnapshot) return
+
+    storeDeleteDocument(documentId)
+    
+    try {
+      await apiDeleteDocument(tableId, documentId)
+    } catch {
+      addDocumentOptimistic(documentSnapshot)
+      setLastError(`Failed to remove document: ${documentSnapshot.file_name}`)
     }
   }
 
   return {
     isUploading,
+    isDragActive,
     lastError,
-    clearLastError: () => setLastError(null),
+    clearLastError,
     startUpload,
+    dragHandlers,
+    handleDeleteDocument,
   }
 }
+

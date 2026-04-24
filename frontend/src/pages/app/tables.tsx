@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState } from "react"
+
 import { Button } from "@/components/ui/button"
 import { TableCard } from "@/components/table/table-card"
 import { TableListRow } from "@/components/table/table-list-row"
 import { DeleteTableDialog } from "@/components/table/delete-table-dialog"
-import { getTables, createTable, deleteTable } from "@/api/tables"
-import { useUser } from "@/stores/auth-store"
+import { useTables } from "@/hooks/use-tables"
 import type { Table } from "@/types/models"
 import { Plus, Table2, List, LayoutGrid } from "lucide-react"
 
@@ -32,90 +31,9 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 }
 
 export function TablesPage() {
-  const navigate = useNavigate()
-  const user = useUser()
-  const [tables, setTables] = useState<Table[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { tables, isLoading, error, isCreating, isDeleting, loadTables, handleCreate, handleDelete } = useTables()
   const [view, setView] = useState<ViewMode>("grid")
   const [deleteTarget, setDeleteTarget] = useState<Table | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isCreating, setIsCreating] = useState(false)
-
-  const loadTables = useCallback(async () => {
-    const workspaceId = user?.last_selected_workspace_id
-
-    if (!workspaceId) {
-      setTables([])
-      setError("No workspace selected")
-      setIsLoading(false)
-      return
-    }
-
-    try {
-      setIsLoading(true)
-      setError(null)
-      const data = await getTables(workspaceId)
-      setTables(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tables")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [user?.last_selected_workspace_id])
-
-  useEffect(() => {
-    loadTables()
-  }, [loadTables])
-
-  async function handleCreate() {
-    const workspaceId = user?.last_selected_workspace_id
-    if (!workspaceId || isCreating) return
-    setIsCreating(true)
-
-    const optimisticTable: Table = {
-      id: `temp_${Date.now()}`,
-      workspace_id: workspaceId,
-      name: `Untitled Table #${tables.length + 1}`,
-      document_count: 0,
-      column_count: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-
-    setTables((prev) => [optimisticTable, ...prev])
-
-    try {
-      const newTable = await createTable({
-        workspace_id: workspaceId,
-        name: `Untitled Table #${tables.length + 1}`,
-      })
-      navigate(`/app/tables/${newTable.id}`)
-    } catch (err) {
-      setTables((prev) => prev.filter((t) => t.id !== optimisticTable.id))
-      setError(err instanceof Error ? err.message : "Failed to create table")
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  async function handleDelete() {
-    if (!deleteTarget || isDeleting) return
-    setIsDeleting(true)
-
-    const previousTables = tables
-    setTables((prev) => prev.filter((t) => t.id !== deleteTarget.id))
-    setDeleteTarget(null)
-
-    try {
-      await deleteTable(deleteTarget.id)
-    } catch (err) {
-      setTables(previousTables)
-      setError(err instanceof Error ? err.message : "Failed to delete table")
-    } finally {
-      setIsDeleting(false)
-    }
-  }
 
   if (isLoading) {
     return (
@@ -195,7 +113,12 @@ export function TablesPage() {
         table={deleteTarget}
         open={deleteTarget !== null}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        onConfirm={handleDelete}
+        onConfirm={() => {
+          if (deleteTarget) {
+            void handleDelete(deleteTarget.id)
+            setDeleteTarget(null)
+          }
+        }}
         pending={isDeleting}
       />
     </div>

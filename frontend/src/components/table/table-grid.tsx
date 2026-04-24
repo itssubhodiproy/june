@@ -26,6 +26,10 @@ interface TableGridProps {
   documents: OrderedItems<TableDocument>
   columns: OrderedItems<TableColumn>
   cells: Record<string, TableCell>
+  onAddColumn: () => void
+  onEditColumn: (column: TableColumn) => void
+  onDeleteColumn: (columnId: string) => void
+  onDeleteDocument: (documentId: string) => void
 }
 
 interface TableRow {
@@ -39,7 +43,7 @@ function getCellKey(documentId: string, columnId: string) {
   return `${documentId}::${columnId}`
 }
 
-export function TableGrid({ documents, columns, cells }: TableGridProps) {
+export function TableGrid({ documents, columns, cells, onAddColumn, onEditColumn, onDeleteColumn, onDeleteDocument }: TableGridProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const cellsRef = useRef(cells)
   cellsRef.current = cells
@@ -73,13 +77,19 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
             <span className="text-foreground">Document</span>
           </div>
         ),
-        cell: ({ getValue }) => <DocumentCell document={getValue()} />,
+        cell: ({ getValue }) => <DocumentCell document={getValue()} onDelete={onDeleteDocument} />,
         size: 288,
       }),
       ...columns.order.map((columnId) =>
         columnHelper.display({
           id: columnId,
-          header: () => <ColumnHeader column={columns.byId[columnId]} />,
+          header: () => (
+            <ColumnHeader
+              column={columns.byId[columnId]}
+              onEdit={onEditColumn}
+              onDelete={onDeleteColumn}
+            />
+          ),
           cell: ({ row }) => <DataCell cell={cellsRef.current[getCellKey(row.original.id, columnId)]} />,
           size: 320,
         })
@@ -87,7 +97,7 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
       columnHelper.display({
         id: "add-column",
         header: () => (
-          <Button type="button" variant="ghost" size="sm" className="w-full justify-start" disabled>
+          <Button type="button" variant="ghost" size="sm" className="w-full justify-start" onClick={onAddColumn}>
             <Plus className="size-4" data-icon="inline-start" />
             Add Column
           </Button>
@@ -96,7 +106,7 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
         size: 156,
       }),
     ],
-    [columns]
+    [columns, onAddColumn, onDeleteColumn, onDeleteDocument, onEditColumn]
   )
 
   // TanStack Table is intentionally used here per docs/frontend.md.
@@ -124,8 +134,8 @@ export function TableGrid({ documents, columns, cells }: TableGridProps) {
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden bg-secondary/30">
-      <div ref={scrollRef} className="h-full overflow-auto px-6 py-5">
-        <div className="min-w-max rounded-[1.25rem] border bg-background shadow-sm">
+      <div ref={scrollRef} className="h-full overflow-auto">
+        <div className="min-w-max border bg-background shadow-sm">
           <table className="w-full border-collapse">
             <thead className="sticky top-0 z-10 bg-background">
               {table.getHeaderGroups().map((headerGroup) => (

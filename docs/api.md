@@ -581,27 +581,6 @@ Side effects:
 
 ---
 
-### GET /api/jobs/{job_id}
-
-Get job progress.
-
-```
-Response: {
-  "id": "job_xyz",
-  "table_id": "tbl_abc123",
-  "total_cells": 200,
-  "completed_cells": 142,
-  "failed_cells": 3,
-  "status": "running",
-  "created_at": "2025-07-01T12:00:00Z"
-}
-Status: 200 OK
-```
-
-`status`: `"running"`, `"completed"`, `"failed"`.
-
----
-
 ## SSE Events
 
 ### GET /api/tables/{table_id}/events

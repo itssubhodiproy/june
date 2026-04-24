@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type DragEvent } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { getTable } from "@/api/tables"
+import { ColumnForm } from "@/components/forms/column-form"
 import { TableGrid } from "@/components/table/table-grid"
 import { TableHeader } from "@/components/table/table-header"
 import { Button } from "@/components/ui/button"
+import { useColumns } from "@/hooks/use-columns"
 import { useUpload } from "@/hooks/use-upload"
 import { cn } from "@/lib/utils"
 import {
@@ -15,10 +17,6 @@ import {
   useHydrateTable,
   useTableMeta,
 } from "@/stores/table-store"
-
-function dragEventHasFiles(event: DragEvent<HTMLElement>) {
-  return Array.from(event.dataTransfer.types).includes("Files")
-}
 
 export function TablePage() {
   const { tableId } = useParams<{ tableId: string }>()
@@ -31,9 +29,17 @@ export function TablePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
-  const [isDragActive, setIsDragActive] = useState(false)
-  const dragDepthRef = useRef(0)
-  const { clearLastError, isUploading, lastError, startUpload } = useUpload(tableId)
+  const { isUploading, isDragActive, lastError, clearLastError, startUpload, dragHandlers, handleDeleteDocument } = useUpload(tableId)
+  const {
+    columnFormOpen,
+    setColumnFormOpen,
+    columnFormVersion,
+    editingColumn,
+    openAddColumn,
+    openEditColumn,
+    handleColumnFormSubmit,
+    handleDeleteColumn,
+  } = useColumns(tableId)
 
   useEffect(() => {
     let cancelled = false
@@ -71,11 +77,6 @@ export function TablePage() {
     }
   }, [clearTable, hydrateTable, retryKey, tableId])
 
-  function resetDragState() {
-    dragDepthRef.current = 0
-    setIsDragActive(false)
-  }
-
   if (isLoading) {
     return (
       <div className="flex h-full min-h-0 flex-1 items-center justify-center">
@@ -98,49 +99,7 @@ export function TablePage() {
   return (
     <div
       className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background"
-      onDragEnter={(event) => {
-        if (!dragEventHasFiles(event)) {
-          return
-        }
-
-        event.preventDefault()
-        dragDepthRef.current += 1
-        clearLastError()
-        setIsDragActive(true)
-      }}
-      onDragOver={(event) => {
-        if (!dragEventHasFiles(event)) {
-          return
-        }
-
-        event.preventDefault()
-        event.dataTransfer.dropEffect = "copy"
-      }}
-      onDragLeave={(event) => {
-        if (!dragEventHasFiles(event)) {
-          return
-        }
-
-        event.preventDefault()
-        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
-
-        if (dragDepthRef.current === 0) {
-          setIsDragActive(false)
-        }
-      }}
-      onDrop={(event) => {
-        if (!dragEventHasFiles(event)) {
-          return
-        }
-
-        event.preventDefault()
-        const { files } = event.dataTransfer
-
-        resetDragState()
-        if (files.length > 0) {
-          void startUpload(files)
-        }
-      }}
+      {...dragHandlers}
     >
       <TableHeader
         title={table.name}
@@ -150,9 +109,18 @@ export function TablePage() {
           clearLastError()
           void startUpload(files)
         }}
+        onAddColumn={openAddColumn}
       />
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <TableGrid documents={documents} columns={columns} cells={cells} />
+        <TableGrid
+          documents={documents}
+          columns={columns}
+          cells={cells}
+          onAddColumn={openAddColumn}
+          onEditColumn={openEditColumn}
+          onDeleteColumn={handleDeleteColumn}
+          onDeleteDocument={handleDeleteDocument}
+        />
         <div
           className={cn(
             "pointer-events-none absolute inset-5 z-20 hidden rounded-[1.5rem] border-2 border-dashed border-primary/30 bg-background/90 p-6 backdrop-blur-sm",
@@ -167,6 +135,13 @@ export function TablePage() {
           </div>
         </div>
       </div>
+      <ColumnForm
+        key={`${editingColumn?.id ?? "new"}:${columnFormVersion}`}
+        open={columnFormOpen}
+        onOpenChange={setColumnFormOpen}
+        onSubmit={handleColumnFormSubmit}
+        defaultValues={editingColumn}
+      />
     </div>
   )
 }

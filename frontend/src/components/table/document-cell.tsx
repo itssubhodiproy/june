@@ -1,10 +1,18 @@
-import { FileText } from "lucide-react"
+import { FileText, MoreHorizontal, Trash } from "lucide-react"
 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import type { TableDocument } from "@/types/models"
 
 interface DocumentCellProps {
   document: TableDocument
+  onDelete?: (documentId: string) => void
 }
 
 const MAX_VISIBLE_FILE_NAME_LENGTH = 38
@@ -29,53 +37,57 @@ function truncateDocumentName(fileName: string) {
   return `${baseName.slice(0, prefixLength)}…${baseName.slice(-suffixLength)}${extension}`
 }
 
-function getParseStatusLabel(status: TableDocument["parse_status"]) {
-  switch (status) {
-    case "ready":
-      return "Ready"
-    case "error":
-      return "Error"
-    case "queued":
-      return "Not ready"
-    default:
-      return "Not ready"
-  }
-}
-
-export function DocumentCell({ document }: DocumentCellProps) {
+export function DocumentCell({ document, onDelete }: DocumentCellProps) {
   const isNotReady = document.parse_status === "not_ready" || document.parse_status === "queued"
   const isError = document.parse_status === "error"
 
   return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-3",
-        isNotReady && "opacity-65",
-        isError && "opacity-100"
-      )}
-    >
+    <div className="group relative flex w-full min-w-0 items-center justify-between">
       <div
         className={cn(
-          "flex size-8 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground",
-          isError && "bg-destructive/10 text-destructive"
+          "flex min-w-0 items-center gap-3",
+          isNotReady && "opacity-50",
+          isError && "opacity-100"
         )}
       >
-        <FileText className="size-4" aria-hidden="true" />
-      </div>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-medium" title={document.file_name}>
-          {truncateDocumentName(document.file_name)}
-        </div>
         <div
           className={cn(
-            "text-xs text-muted-foreground",
-            isError && "text-destructive"
+            "flex size-8 shrink-0 items-center justify-center rounded-xl bg-secondary text-muted-foreground",
+            isError && "bg-destructive/10 text-destructive"
           )}
         >
-          {getParseStatusLabel(document.parse_status)}
-          {document.page_count !== null ? ` • ${document.page_count} pages` : ""}
+          <FileText className="size-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium" title={document.file_name}>
+            {truncateDocumentName(document.file_name)}
+          </div>
         </div>
       </div>
+
+      {onDelete && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="ml-2 shrink-0 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+              aria-label="Document options"
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[160px]">
+            <DropdownMenuItem
+              className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
+              onClick={() => onDelete(document.id)}
+            >
+              <Trash />
+              Delete document
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 }
