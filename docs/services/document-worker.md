@@ -2,7 +2,7 @@
 
 # Document Worker — Service Design
 
-*Last updated: 2025-07-01 · Status: Active*
+*Last updated: 2026-04-14 · Status: Active*
 
 ---
 
@@ -12,10 +12,10 @@ Background queue consumer that turns raw PDFs into searchable, citation-ready co
 
 ## Tech Stack
 
-- **Runtime:** Python 3.12
+- **Runtime:** Python 3.13+
 - **PDF Parsing:** LiteParse (Python wrapper over Node.js CLI)
-- **Embeddings:** OpenAI `text-embedding-3-small` (abstracted for swap)
-- **Queue:** Redis via aioredis (BRPOP consumer)
+- **Embeddings:** Cohere `embed-v4.0` (abstracted for swap)
+- **Queue:** Redis-native library (BRPOP consumer)
 - **Events:** Redis pub/sub (PUBLISH)
 - **HTTP Client:** httpx (async, calls API Server)
 - **S3:** boto3 (download files)
@@ -55,9 +55,9 @@ services/document-worker/
 | `S3_ACCESS_KEY` | S3 access key | `minioadmin` |
 | `S3_SECRET_KEY` | S3 secret key | `minioadmin` |
 | `S3_BUCKET_NAME` | Bucket name | `june-documents` |
-| `EMBEDDING_PROVIDER` | Which embedding API to use | `openai` |
-| `OPENAI_API_KEY` | OpenAI API key (if provider is openai) | `sk-...` |
-| `EMBEDDING_MODEL` | Model name | `text-embedding-3-small` |
+| `EMBEDDING_PROVIDER` | Which embedding API to use | `cohere` |
+| `COHERE_API_KEY` | Cohere API key (if provider is cohere) | `sk-...` |
+| `EMBEDDING_MODEL` | Model name | `embed-v4.0` |
 | `EMBEDDING_DIMENSION` | Vector dimension | `1536` |
 | `MAX_CONCURRENT_PARSES` | Concurrent docs per instance | `1` |
 | `MAX_CONCURRENT_EMBEDS` | Concurrent embedding API calls | `5` |
@@ -126,8 +126,10 @@ Embedding API calls are IO-bound and use a separate semaphore (`MAX_CONCURRENT_E
 
 5. Generate embeddings
    embedding_client.embed([chunk.text for chunk in chunks])
-   Batched: up to 2048 texts per API call
-   (~1-5 seconds)
+   Batched: 
+    - current implementation: up to 96 texts per Cohere API call
+    - embedding client is abstracted so a future V2-style backend can raise this to up to 2048 texts per call without changing the pipeline
+    (~1-5 seconds)
 
 6. Store chunks via API Server
    POST /api/documents/{doc_id}/chunks
@@ -144,18 +146,16 @@ Embedding API calls are IO-bound and use a separate semaphore (`MAX_CONCURRENT_E
    Frontend: row transitions from faded to solid
 ```
 
-**Chunking strategy.** Page-based with paragraph splitting for long pages:
+**Chunking strategy.** Sentence-boundary chunking targeting 200 tokens with a 500-token hard cap:
 
 ```
 For each page in parsed document:
-    if page text < 1000 tokens:
-        → one chunk = entire page
-        → chunk.bbox = all text_items from that page
-    else:
-        → split at paragraph boundaries (double newline)
-        → each sub-chunk carries only the text_items 
-          that fall within its text range
-        → chunk.page_number stays the same (same page, multiple chunks)
+    target ~200 tokens per chunk
+    split at sentence boundary (full stop followed by space)
+    never split mid-sentence
+    hard cap at 500 tokens regardless
+    each chunk carries only the text_items that fall within its text range
+    chunk.page_number stays the same for all chunks on that page
 ```
 
 Every chunk preserves its bounding box items so the frontend can highlight the exact text region when a citation references that chunk.
@@ -184,12 +184,12 @@ Config `PARSER=liteparse` selects which implementation. Same pattern as the embe
 class EmbeddingClient(ABC):
     async def embed(self, texts: list[str]) -> list[list[float]]
 
-class OpenAIEmbedding(EmbeddingClient):      # Current
-class CohereEmbedding(EmbeddingClient):      # Alternative
+class OpenAIEmbedding(EmbeddingClient):      # Alternative
+class CohereEmbedding(EmbeddingClient):      # Current
 class InternalEmbedding(EmbeddingClient):    # Future: self-hosted EmbeddingGemma
 ```
 
-Config `EMBEDDING_PROVIDER=openai` selects which implementation. Switching to self-hosted model = change one env var.
+Config `EMBEDDING_PROVIDER=cohere` selects which implementation. Switching to self-hosted model = change one env var.
 
 **Retry logic.** If any step fails:
 

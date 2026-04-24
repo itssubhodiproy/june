@@ -5,10 +5,20 @@ from redis.asyncio import Redis
 
 from uuid import UUID
 
-from app.dependencies import get_current_user, get_db, get_redis_client, get_storage_service
+from app.dependencies import (
+    get_current_user,
+    get_db,
+    get_redis_client,
+    get_storage_service,
+    require_internal_service,
+)
 from app.models.user import User
 from app.schemas.document import (
+    DocumentChunksCreateRequest,
+    DocumentChunksCreateResponse,
     DocumentConfirmResponse,
+    DocumentUpdateRequest,
+    DocumentUpdateResponse,
     DocumentUploadUrlRequest,
     DocumentUploadUrlResponse,
 )
@@ -56,3 +66,40 @@ async def confirm_document_upload(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/{doc_id}/chunks", response_model=DocumentChunksCreateResponse, status_code=status.HTTP_201_CREATED)
+async def store_document_chunks(
+    doc_id: UUID,
+    data: DocumentChunksCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+    _: None = Depends(require_internal_service),
+):
+    document_service = DocumentService(db, storage)
+    try:
+        return await document_service.store_chunks(
+            document_id=doc_id,
+            chunks=[chunk.model_dump() for chunk in data.chunks],
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@router.patch("/{doc_id}", response_model=DocumentUpdateResponse)
+async def update_document(
+    doc_id: UUID,
+    data: DocumentUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+    _: None = Depends(require_internal_service),
+):
+    document_service = DocumentService(db, storage)
+    try:
+        return await document_service.update_document(
+            document_id=doc_id,
+            parse_status=data.parse_status,
+            page_count=data.page_count,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

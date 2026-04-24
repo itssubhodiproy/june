@@ -31,7 +31,6 @@ users
                                       │
                                       └──< template_columns
 
-jobs ── references: tables
 
 Legend: ──< = one-to-many    >── = many-to-many join table
 ```
@@ -315,31 +314,6 @@ After import, the new `columns` rows are fully independent. Edits to them do not
 
 ---
 
-### jobs
-
-```
-| Column          | Type        | Constraints                   |
-|-----------------|-------------|-------------------------------|
-| id              | UUID        | PK, DEFAULT gen_random_uuid() |
-| table_id        | UUID        | FK → tables.id, NOT NULL      |
-| total_cells     | INTEGER     | NOT NULL                      |
-| completed_cells | INTEGER     | NOT NULL, DEFAULT 0           |
-| failed_cells    | INTEGER     | NOT NULL, DEFAULT 0           |
-| status          | VARCHAR(20) | NOT NULL, DEFAULT 'running'   |
-| created_at      | TIMESTAMPTZ | NOT NULL, DEFAULT now()       |
-| completed_at    | TIMESTAMPTZ | nullable                      |
-
-Indexes:
-  (table_id, status)  — find active jobs for a table
-
-CHECK constraint on status:
-  status IN ('running', 'completed', 'failed')
-```
-
-Job is marked `completed` when `completed_cells + failed_cells = total_cells`. Updated atomically by the API Server as each cell result is saved.
-
----
-
 ## Vector Data (pgvector)
 
 ### document_chunks
@@ -424,6 +398,6 @@ Rules:
 
 | Migration | Description |
 |-----------|-------------|
-| 20250701_001 | Initial schema — workspaces, users, tables, columns, documents, table_documents, cells, jobs, document_chunks |
+| 20250701_001 | Initial schema — workspaces, users, tables, columns, documents, table_documents, cells, document_chunks |
 | 20250703_002 | User-workspace many-to-many — drop `workspace_id` from `users`, create `user_workspaces` join table |
 | 20250703_003 | Templates — create `templates` and `template_columns` tables |

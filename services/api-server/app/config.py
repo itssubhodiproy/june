@@ -12,10 +12,12 @@ class Settings(BaseSettings):
     S3_SECRET_KEY: str
     S3_BUCKET_NAME: str
     S3_PRESIGNED_EXPIRY: int = 3600
+    EMBEDDING_DIMENSION: int = 1536
 
     API_SERVER_URL: str = "http://localhost:8000"
     CORS_ORIGINS: str = "http://localhost:3000"
     JWT_SECRET: str
+    INTERNAL_SERVICE_TOKEN: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_DAYS: int = 7
 

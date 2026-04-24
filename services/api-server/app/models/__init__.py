@@ -1,7 +1,6 @@
 from app.models.cell import Cell
 from app.models.column import ColumnModel
 from app.models.document import Document
-from app.models.job import Job
 from app.models.table import Table
 from app.models.table_document import TableDocument
 from app.models.template import Template

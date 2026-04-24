@@ -1,12 +1,13 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
 from app.models.cell import Cell
 from app.models.column import ColumnModel
 from app.models.document import Document
+from app.models.document_chunk import DocumentChunk
 from app.models.table import Table
 from app.models.table_document import TableDocument
 from app.models.user import User
@@ -54,6 +55,17 @@ class DocumentService:
             raise LookupError("Document not found")
         document, table_id = row
         return document, table_id
+
+    async def _get_document_by_id(self, *, document_id: UUID) -> Document:
+        document = await self.db.scalar(
+            select(Document).where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+            )
+        )
+        if not document:
+            raise LookupError("Document not found")
+        return document
     
 
     async def create_upload_url(
@@ -153,3 +165,50 @@ class DocumentService:
             "doc_id": document.id,
             "parse_status": document.parse_status,
         }
+
+    async def store_chunks(
+        self,
+        *,
+        document_id: UUID,
+        chunks: list[dict],
+    ) -> dict:
+        document = await self._get_document_by_id(document_id=document_id)
+
+        await self.db.execute(
+            delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
+        )
+
+        for chunk in chunks:
+            self.db.add(
+                DocumentChunk(
+                    document_id=document.id,
+                    chunk_index=chunk["chunk_index"],
+                    text_content=chunk["text_content"],
+                    page_number=chunk["page_number"],
+                    section=chunk.get("section"),
+                    bbox=chunk["bbox"],
+                    embedding=chunk["embedding"],
+                )
+            )
+
+        await self.db.commit()
+
+        return {"stored": len(chunks)}
+
+    async def update_document(
+        self,
+        *,
+        document_id: UUID,
+        parse_status: str | None = None,
+        page_count: int | None = None,
+    ) -> Document:
+        document = await self._get_document_by_id(document_id=document_id)
+
+        if parse_status is not None:
+            document.parse_status = parse_status
+        if page_count is not None:
+            document.page_count = page_count
+
+        await self.db.commit()
+        await self.db.refresh(document)
+        return document
