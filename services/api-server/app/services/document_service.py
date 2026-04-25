@@ -1,6 +1,6 @@
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from redis.asyncio import Redis
 
@@ -111,14 +111,18 @@ class DocumentService:
             )
         ).all()
 
-        for column_id in column_ids:
-            self.db.add(
-                Cell(
-                    table_id=table.id,
-                    document_id=document_id,
-                    column_id=column_id,
-                    status="empty",
-                )
+        if column_ids:
+            await self.db.execute(
+                insert(Cell),
+                [
+                    {
+                        "table_id": table.id,
+                        "document_id": document_id,
+                        "column_id": column_id,
+                        "status": "empty",
+                    }
+                    for column_id in column_ids
+                ],
             )
 
         upload_url = self.storage.create_presigned_upload_url(
@@ -178,17 +182,21 @@ class DocumentService:
             delete(DocumentChunk).where(DocumentChunk.document_id == document.id)
         )
 
-        for chunk in chunks:
-            self.db.add(
-                DocumentChunk(
-                    document_id=document.id,
-                    chunk_index=chunk["chunk_index"],
-                    text_content=chunk["text_content"],
-                    page_number=chunk["page_number"],
-                    section=chunk.get("section"),
-                    bbox=chunk["bbox"],
-                    embedding=chunk["embedding"],
-                )
+        if chunks:
+            await self.db.execute(
+                insert(DocumentChunk),
+                [
+                    {
+                        "document_id": document.id,
+                        "chunk_index": chunk["chunk_index"],
+                        "text_content": chunk["text_content"],
+                        "page_number": chunk["page_number"],
+                        "section": chunk.get("section"),
+                        "bbox": chunk["bbox"],
+                        "embedding": chunk["embedding"],
+                    }
+                    for chunk in chunks
+                ],
             )
 
         await self.db.commit()

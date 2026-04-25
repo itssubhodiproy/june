@@ -18,7 +18,7 @@ class ColumnCreateResponse(BaseModel):
     table_id: UUID
     title: str
     prompt: str
-    type: str
+    type: ColumnType
     order: int
     created_at: datetime
 
@@ -36,7 +36,7 @@ class ColumnUpdateResponse(BaseModel):
     id: UUID
     title: str
     prompt: str
-    type: str
+    type: ColumnType
     order: int
     updated_at: datetime
 

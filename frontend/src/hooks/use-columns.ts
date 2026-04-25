@@ -10,16 +10,22 @@ import {
   useAddColumn,
   useDeleteColumn,
   useHydrateTable,
+  useTableCells,
   useTableColumns,
   useUpdateColumn,
+  useRestoreCells,
+  useRestoreColumnsOrder,
 } from "@/stores/table-store"
 import type { TableColumn } from "@/types/models"
 
 export function useColumns(tableId?: string) {
   const columns = useTableColumns()
+  const cells = useTableCells()
   const storeAddColumn = useAddColumn()
   const storeUpdateColumn = useUpdateColumn()
   const storeDeleteColumn = useDeleteColumn()
+  const storeRestoreCells = useRestoreCells()
+  const restoreColumnsOrder = useRestoreColumnsOrder()
   const hydrateTable = useHydrateTable()
   const [columnFormOpen, setColumnFormOpen] = useState(false)
   const [editingColumn, setEditingColumn] = useState<TableColumn | null>(null)
@@ -44,12 +50,14 @@ export function useColumns(tableId?: string) {
       if (editingColumn) {
         // Optimistic update for edit
         const snapshot = { ...editingColumn }
+        const cellsSnapshot = { ...cells }
         storeUpdateColumn(editingColumn.id, data)
 
         try {
           await apiUpdateColumn(tableId, editingColumn.id, data)
         } catch {
           storeUpdateColumn(snapshot.id, snapshot)
+          storeRestoreCells(cellsSnapshot)
         }
       } else {
         // Add: not optimistic — need server id + order
@@ -67,7 +75,7 @@ export function useColumns(tableId?: string) {
         }
       }
     },
-    [tableId, editingColumn, storeAddColumn, storeUpdateColumn]
+    [tableId, editingColumn, cells, storeAddColumn, storeUpdateColumn, storeRestoreCells]
   )
 
   const handleDeleteColumn = useCallback(
@@ -77,6 +85,9 @@ export function useColumns(tableId?: string) {
 
       // Optimistic delete with snapshot for revert
       const columnSnapshot = columns.byId[columnId]
+      const cellsSnapshot = { ...cells }
+      const orderSnapshot = [...columns.order]
+      
       storeDeleteColumn(columnId)
 
       try {
@@ -84,6 +95,8 @@ export function useColumns(tableId?: string) {
       } catch {
         if (columnSnapshot) {
           storeAddColumn(columnSnapshot)
+          storeRestoreCells(cellsSnapshot)
+          restoreColumnsOrder(orderSnapshot)
         }
         try {
           const payload = await getTable(tableId)
@@ -93,7 +106,7 @@ export function useColumns(tableId?: string) {
         }
       }
     },
-    [tableId, columns, storeDeleteColumn, storeAddColumn, hydrateTable]
+    [tableId, columns, cells, storeDeleteColumn, storeAddColumn, storeRestoreCells, restoreColumnsOrder, hydrateTable]
   )
 
   return {

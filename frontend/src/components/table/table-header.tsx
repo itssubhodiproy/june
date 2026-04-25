@@ -8,7 +8,7 @@ interface TableHeaderProps {
   title: string
   isUploading?: boolean
   uploadError?: string | null
-  onSelectFiles: (files: FileList) => void
+  onSelectFiles: (files: File[] | FileList) => void
   onAddColumn: () => void
 }
 

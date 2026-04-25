@@ -1,6 +1,6 @@
 # API Reference — June Review Table
 
-*Last updated: 2025-07-03 · Status: Active*
+*Last updated: 2026-04-25 · Status: Active*
 
 ---
 
@@ -155,7 +155,8 @@ Status: 200 OK
 
 Notes:
 - `cells` is a flat array. Frontend indexes by `document_id::column_id` for O(1) lookup.
-- `parse_status` is `"not_ready"` or `"ready"` or `"error"`. Frontend uses this for faded/solid row styling.
+- `cell.status` can be `"empty"`, `"extracting"`, `"completed"`, `"stale"`, or `"error"`. Clients should monitor this field for extraction progress.
+- `parse_status` is `"not_ready"`, `"queued"`, `"ready"`, or `"error"`. Frontend uses this for faded/solid row styling.
 - `columns` are ordered by the `order` field.
 
 ---
@@ -544,10 +545,9 @@ Run extraction on all empty and stale cells.
 ```
 Request:  { }
 Response: {
-  "job_id": "job_xyz",
   "table_id": "tbl_abc123",
   "total_cells": 200,
-  "status": "running"
+  "status": "triggered"
 }
 Status: 202 Accepted
 ```
@@ -556,7 +556,11 @@ Side effects:
 - Identifies all cells where `status` is `"empty"` or `"stale"` AND document `parse_status` is `"ready"`.
 - Sets their status to `"extracting"`.
 - Enqueues one `extraction_tasks` Redis task per cell.
-- Creates a `jobs` record for tracking.
+
+Progress Tracking:
+There is no dedicated polling endpoint for job progress. Instead, clients should track progress in two ways:
+1. **Real-time**: Listen to SSE events (see `SSE Events` section) for individual cell completion.
+2. **State Sync**: Call `GET /api/tables/{table_id}` to load the latest status of all cells and documents. The `status` field in the `cells` array will transition from `"extracting"` to `"completed"` or `"error"`.
 
 Idempotent — safe to call multiple times. Only processes cells that need processing.
 
@@ -661,7 +665,6 @@ All cells in a run have finished (completed or errored).
 ```
 event: run_completed
 data: {
-  "job_id": "job_xyz",
   "table_id": "tbl_abc123",
   "total": 200,
   "completed": 195,

@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react"
+import { useCallback, useRef, useState, type DragEvent } from "react"
 
 import {
   confirmDocumentUpload,
@@ -11,6 +11,9 @@ import {
   useUpdateDocumentStatus,
   useDeleteDocument,
   useTableDocuments,
+  useTableCells,
+  useRestoreCells,
+  useRestoreDocumentsOrder,
 } from "@/stores/table-store"
 
 const PDF_MIME_TYPE = "application/pdf"
@@ -34,7 +37,10 @@ export function useUpload(tableId?: string) {
   const addDocumentOptimistic = useAddDocumentOptimistic()
   const storeDeleteDocument = useDeleteDocument()
   const documents = useTableDocuments()
+  const cells = useTableCells()
   const updateDocumentStatus = useUpdateDocumentStatus()
+  const storeRestoreCells = useRestoreCells()
+  const restoreDocumentsOrder = useRestoreDocumentsOrder()
   const [isUploading, setIsUploading] = useState(false)
   const [lastError, setLastError] = useState<string | null>(null)
   const [isDragActive, setIsDragActive] = useState(false)
@@ -163,22 +169,37 @@ export function useUpload(tableId?: string) {
     },
   }
 
-  async function handleDeleteDocument(documentId: string) {
-    if (!tableId) return
-    if (!window.confirm("Remove this document from the table and delete all its cells?")) return
-    
-    const documentSnapshot = documents.byId[documentId]
-    if (!documentSnapshot) return
+  const handleDeleteDocument = useCallback(
+    async (documentId: string) => {
+      if (!tableId) return
+      if (!window.confirm("Remove this document from the table and delete all its cells?")) return
+      
+      const documentSnapshot = documents.byId[documentId]
+      if (!documentSnapshot) return
 
-    storeDeleteDocument(documentId)
-    
-    try {
-      await apiDeleteDocument(tableId, documentId)
-    } catch {
-      addDocumentOptimistic(documentSnapshot)
-      setLastError(`Failed to remove document: ${documentSnapshot.file_name}`)
-    }
-  }
+      const cellsSnapshot = { ...cells }
+      const orderSnapshot = [...documents.order]
+      storeDeleteDocument(documentId)
+      
+      try {
+        await apiDeleteDocument(tableId, documentId)
+      } catch {
+        addDocumentOptimistic(documentSnapshot)
+        storeRestoreCells(cellsSnapshot)
+        restoreDocumentsOrder(orderSnapshot)
+        setLastError(`Failed to remove document: ${documentSnapshot.file_name}`)
+      }
+    },
+    [
+      tableId,
+      documents,
+      cells,
+      storeDeleteDocument,
+      addDocumentOptimistic,
+      storeRestoreCells,
+      restoreDocumentsOrder,
+    ]
+  )
 
   return {
     isUploading,

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cell import Cell
@@ -78,14 +78,18 @@ class ColumnService:
             )
         ).all()
 
-        for doc_id in document_ids:
-            self.db.add(
-                Cell(
-                    table_id=table.id,
-                    document_id=doc_id,
-                    column_id=column.id,
-                    status="empty",
-                )
+        if document_ids:
+            await self.db.execute(
+                insert(Cell),
+                [
+                    {
+                        "table_id": table.id,
+                        "document_id": doc_id,
+                        "column_id": column.id,
+                        "status": "empty",
+                    }
+                    for doc_id in document_ids
+                ],
             )
 
         await self.db.commit()

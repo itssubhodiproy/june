@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 interface UploadButtonProps {
   disabled?: boolean
   isUploading?: boolean
-  onSelectFiles: (files: FileList) => void
+  onSelectFiles: (files: File[] | FileList) => void
 }
 
 export function UploadButton({
@@ -33,7 +33,7 @@ export function UploadButton({
               (file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
             )
             if (pdfFiles.length > 0) {
-              onSelectFiles(pdfFiles as unknown as FileList)
+              onSelectFiles(pdfFiles)
             }
           }
 

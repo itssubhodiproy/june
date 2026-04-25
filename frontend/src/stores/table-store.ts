@@ -32,6 +32,9 @@ interface TableStore {
   updateColumn: (columnId: string, updates: Partial<TableColumn>) => void
   deleteColumn: (columnId: string) => void
   clearTable: () => void
+  restoreCells: (cells: Record<string, TableCell>) => void
+  restoreDocumentsOrder: (order: string[]) => void
+  restoreColumnsOrder: (order: string[]) => void
 }
 
 function emptyOrderedItems<T>(): OrderedItems<T> {
@@ -250,6 +253,15 @@ export const useTableStore = create<TableStore>()((set) => ({
       cells: {},
     })
   },
+  restoreCells: (cells) => {
+    set({ cells })
+  },
+  restoreDocumentsOrder: (order) => {
+    set((state) => ({ documents: { ...state.documents, order } }))
+  },
+  restoreColumnsOrder: (order) => {
+    set((state) => ({ columns: { ...state.columns, order } }))
+  },
 }))
 
 export function useTableMeta() {
@@ -296,6 +308,18 @@ export function useDeleteDocument() {
   return useTableStore((state) => state.deleteDocument)
 }
 
+export function useRestoreDocumentsOrder() {
+  return useTableStore((state) => state.restoreDocumentsOrder)
+}
+
+export function useRestoreColumnsOrder() {
+  return useTableStore((state) => state.restoreColumnsOrder)
+}
+
 export function useClearTable() {
   return useTableStore((state) => state.clearTable)
+}
+
+export function useRestoreCells() {
+  return useTableStore((state) => state.restoreCells)
 }
