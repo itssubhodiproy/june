@@ -2,9 +2,13 @@ import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { getTable } from "@/api/tables"
+import { ColumnForm } from "@/components/forms/column-form"
 import { TableGrid } from "@/components/table/table-grid"
 import { TableHeader } from "@/components/table/table-header"
 import { Button } from "@/components/ui/button"
+import { useColumns } from "@/hooks/use-columns"
+import { useUpload } from "@/hooks/use-upload"
+import { cn } from "@/lib/utils"
 import {
   useClearTable,
   useTableCells,
@@ -25,6 +29,17 @@ export function TablePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
+  const { isUploading, isDragActive, lastError, clearLastError, startUpload, dragHandlers, handleDeleteDocument } = useUpload(tableId)
+  const {
+    columnFormOpen,
+    setColumnFormOpen,
+    columnFormVersion,
+    editingColumn,
+    openAddColumn,
+    openEditColumn,
+    handleColumnFormSubmit,
+    handleDeleteColumn,
+  } = useColumns(tableId)
 
   useEffect(() => {
     let cancelled = false
@@ -82,9 +97,51 @@ export function TablePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <TableHeader title={table.name} />
-      <TableGrid documents={documents} columns={columns} cells={cells} />
+    <div
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-background"
+      {...dragHandlers}
+    >
+      <TableHeader
+        title={table.name}
+        isUploading={isUploading}
+        uploadError={lastError}
+        onSelectFiles={(files) => {
+          clearLastError()
+          void startUpload(files)
+        }}
+        onAddColumn={openAddColumn}
+      />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <TableGrid
+          documents={documents}
+          columns={columns}
+          cells={cells}
+          onAddColumn={openAddColumn}
+          onEditColumn={openEditColumn}
+          onDeleteColumn={handleDeleteColumn}
+          onDeleteDocument={handleDeleteDocument}
+        />
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-5 z-20 hidden rounded-[1.5rem] border-2 border-dashed border-primary/30 bg-background/90 p-6 backdrop-blur-sm",
+            isDragActive && "flex items-center justify-center"
+          )}
+        >
+          <div className="flex max-w-sm flex-col items-center gap-2 text-center">
+            <p className="text-base font-medium text-foreground">Drop PDFs to upload</p>
+            <p className="text-sm text-muted-foreground">
+              Files will appear in the table immediately and stay muted until they are ready.
+            </p>
+          </div>
+        </div>
+      </div>
+      <ColumnForm
+        key={`${editingColumn?.id ?? "new"}:${columnFormVersion}`}
+        open={columnFormOpen}
+        onOpenChange={setColumnFormOpen}
+        onSubmit={handleColumnFormSubmit}
+        defaultValues={editingColumn}
+      />
     </div>
   )
 }

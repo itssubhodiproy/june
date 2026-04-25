@@ -1,6 +1,12 @@
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import type { TableColumn } from "@/types/models"
 
@@ -14,9 +20,11 @@ const typeBadgeLabel: Record<TableColumn["type"], string> = {
 
 interface ColumnHeaderProps {
   column: TableColumn
+  onEdit: (column: TableColumn) => void
+  onDelete: (columnId: string) => void
 }
 
-export function ColumnHeader({ column }: ColumnHeaderProps) {
+export function ColumnHeader({ column, onEdit, onDelete }: ColumnHeaderProps) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span
@@ -28,16 +36,32 @@ export function ColumnHeader({ column }: ColumnHeaderProps) {
         {typeBadgeLabel[column.type]}
       </span>
       <span className="min-w-0 truncate text-sm font-medium">{column.title}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        className="ml-auto shrink-0 text-muted-foreground"
-        aria-label={`Column options for ${column.title}`}
-        disabled
-      >
-        <MoreHorizontal />
-      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="ml-auto shrink-0 text-muted-foreground"
+            aria-label={`Column options for ${column.title}`}
+          >
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onEdit(column)}>
+            <Pencil data-icon="inline-start" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => onDelete(column.id)}
+          >
+            <Trash2 data-icon="inline-start" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

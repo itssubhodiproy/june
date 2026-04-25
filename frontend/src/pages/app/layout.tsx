@@ -31,7 +31,8 @@ export function AppLayout() {
           aria-label={expanded ? "Collapse sidebar" : "Expand sidebar"}
         >
           <div className="size-8 shrink-0 overflow-hidden rounded-md">
-            <img src="/logo-dark.png" alt="June" className="size-full object-contain" />
+            <img src="/logo-dark.png" alt="June" className="size-full object-contain dark:hidden" />
+            <img src="/logo-light.png" alt="June" className="size-full object-contain hidden dark:block" />
           </div>
           <span
             className={cn(

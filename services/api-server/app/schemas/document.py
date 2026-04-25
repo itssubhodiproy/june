@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 
+ParseStatusType = Literal["not_ready", "queued", "ready", "error"]
 
 class BoundingBoxItem(BaseModel):
     text: str
@@ -55,17 +56,17 @@ class DocumentUploadUrlResponse(BaseModel):
 
 class DocumentConfirmResponse(BaseModel):
     doc_id: UUID
-    parse_status: str
+    parse_status: ParseStatusType
 
 
 class DocumentUpdateRequest(BaseModel):
-    parse_status: Literal["not_ready", "queued", "ready", "error"] | None = None
+    parse_status: ParseStatusType | None = None
     page_count: int | None = Field(default=None, ge=1)
 
 
 class DocumentUpdateResponse(BaseModel):
     id: UUID
-    parse_status: str
+    parse_status: ParseStatusType
     page_count: int | None
     updated_at: datetime
 

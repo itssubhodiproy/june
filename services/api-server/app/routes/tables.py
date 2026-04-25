@@ -87,3 +87,18 @@ async def delete_table(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/{table_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_document_from_table(
+    table_id: UUID,
+    doc_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    table_service = TableService(db)
+    try:
+        await table_service.remove_document(user=current_user, table_id=table_id, document_id=doc_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+

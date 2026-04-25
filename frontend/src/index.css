@@ -120,11 +120,33 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
+
+  /* Global Scrollbar Styles */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/20 rounded-full border-[3px] border-solid border-transparent bg-clip-content;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+
+  html {
+    scrollbar-color: var(--muted-foreground) transparent;
+    scrollbar-width: thin;
+    @apply font-sans;
+  }
+
   body {
     @apply bg-background text-foreground;
-    }
-  html {
-    @apply font-sans;
-    }
+  }
 }
