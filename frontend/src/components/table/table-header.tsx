@@ -33,11 +33,11 @@ export function TableHeader({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <UploadButton onSelectFiles={onSelectFiles} isUploading={isUploading} />
-          <Button type="button" variant="outline" size="sm" onClick={onAddColumn}>
+          <Button type="button" variant="outline" size="sm" className="cursor-pointer" onClick={onAddColumn}>
             <Plus className="size-4" data-icon="inline-start" />
             Column
           </Button>
-          <Button type="button" size="sm" disabled>
+          <Button type="button" size="sm" className="cursor-pointer" disabled>
             <Play className="size-4" data-icon="inline-start" />
             Run All
           </Button>

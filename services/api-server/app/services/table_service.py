@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cell import Cell
@@ -184,14 +184,14 @@ class TableService:
         table = await self._get_accessible_table(user=user, table_id=table_id)
         
         await self.db.execute(
-            Cell.__table__.delete().where(
+            delete(Cell).where(
                 Cell.table_id == table.id,
                 Cell.document_id == document_id,
             )
         )
         
         result = await self.db.execute(
-            TableDocument.__table__.delete().where(
+            delete(TableDocument).where(
                 TableDocument.table_id == table.id,
                 TableDocument.document_id == document_id,
             )
@@ -199,16 +199,4 @@ class TableService:
         if result.rowcount == 0:
             raise LookupError("Document association not found in this table")
             
-        remaining_tables = await self.db.scalar(
-            select(func.count(TableDocument.id)).where(
-                TableDocument.document_id == document_id,
-            )
-        )
-        if remaining_tables == 0:
-            doc = await self.db.scalar(
-                select(Document).where(Document.id == document_id)
-            )
-            if doc:
-                doc.deleted_at = datetime.now(timezone.utc)
-                
         await self.db.commit()

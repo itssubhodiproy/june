@@ -1,3 +1,5 @@
+import type { ColumnType, ParseStatus } from "./models"
+
 export interface DocumentUploadUrlRequest {
   file_name: string
   file_type: string
@@ -13,13 +15,13 @@ export interface DocumentUploadUrlResponse {
 
 export interface DocumentConfirmResponse {
   doc_id: string
-  parse_status: "not_ready" | "queued" | "ready" | "error"
+  parse_status: ParseStatus
 }
 
 export interface ColumnCreateRequest {
   title: string
   prompt: string
-  type: "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+  type: ColumnType
 }
 
 export interface ColumnCreateResponse {
@@ -27,7 +29,7 @@ export interface ColumnCreateResponse {
   table_id: string
   title: string
   prompt: string
-  type: "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+  type: ColumnType
   order: number
   created_at: string
 }
@@ -35,14 +37,14 @@ export interface ColumnCreateResponse {
 export interface ColumnUpdateRequest {
   title?: string
   prompt?: string
-  type?: "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+  type?: ColumnType
 }
 
 export interface ColumnUpdateResponse {
   id: string
   title: string
   prompt: string
-  type: "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+  type: ColumnType
   order: number
   updated_at: string
 }

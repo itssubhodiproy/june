@@ -1,3 +1,7 @@
+export type ParseStatus = "not_ready" | "queued" | "ready" | "error"
+export type ColumnType = "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+export type CellStatus = "empty" | "extracting" | "completed" | "stale" | "error"
+
 export interface Table {
   id: string
   workspace_id: string
@@ -14,7 +18,7 @@ export interface TableDocument {
   file_type: string
   file_size: number
   page_count: number | null
-  parse_status: "not_ready" | "queued" | "ready" | "error"
+  parse_status: ParseStatus
   added_at: string
 }
 
@@ -22,7 +26,7 @@ export interface TableColumn {
   id: string
   title: string
   prompt: string
-  type: "free_response" | "yes_no" | "date" | "currency" | "verbatim"
+  type: ColumnType
   order: number
 }
 
@@ -37,7 +41,7 @@ export interface TableCell {
   id: string
   document_id: string
   column_id: string
-  status: "empty" | "extracting" | "completed" | "stale" | "error"
+  status: CellStatus
   answer: string | null
   reasoning: string | null
   source_references: CellSourceReference[]
