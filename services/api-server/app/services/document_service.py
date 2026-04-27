@@ -12,6 +12,7 @@ from app.models.table import Table
 from app.models.table_document import TableDocument
 from app.models.user import User
 from app.models.user_workspace import UserWorkspace
+from app.config import settings
 from app.services.storage_service import StorageService
 from app.utils.redis_tasks import enqueue_document_parsing
 
@@ -78,6 +79,9 @@ class DocumentService:
         file_size: int,
     ) -> dict:
         table = await self._get_accessible_table(user=user, table_id=table_id)
+
+        if not self.storage.bucket_exists():
+            raise RuntimeError(f"Document storage bucket '{settings.S3_BUCKET_NAME}' is not initialized")
 
         document_id = uuid4()
         file_key = f"documents/{document_id}/{file_name}"

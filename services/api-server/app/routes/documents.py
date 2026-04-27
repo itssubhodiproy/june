@@ -46,6 +46,8 @@ async def create_document_upload_url(
         )
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
 
 
 @router.post("/{doc_id}/confirm", response_model=DocumentConfirmResponse)

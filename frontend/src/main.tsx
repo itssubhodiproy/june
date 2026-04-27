@@ -18,9 +18,7 @@ export function AppWithAuth() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <ThemeProvider>
-      <AppWithAuth />
-    </ThemeProvider>
-  </StrictMode>
+  <ThemeProvider>
+    <AppWithAuth />
+  </ThemeProvider>
 )

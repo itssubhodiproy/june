@@ -7,6 +7,16 @@ class StorageService:
     def __init__(self, client: BaseClient) -> None:
         self.client = client
 
+    def bucket_exists(self) -> bool:
+        try:
+            self.client.head_bucket(Bucket=settings.S3_BUCKET_NAME)
+            return True
+        except Exception as exc:
+            error_code = getattr(exc, "response", {}).get("Error", {}).get("Code")
+            if error_code in {"404", "NoSuchBucket", "NotFound"}:
+                return False
+            raise
+
     def object_exists(self, *, file_key: str) -> bool:
         try:
             self.client.head_object(

@@ -25,7 +25,7 @@ tasks:
   dev:
     desc: Start infrastructure (postgres, redis, minio)
     cmds:
-      - docker compose up -d postgres redis minio
+      - docker compose up -d postgres redis minio minio-init
 
   # === Production-like (everything in Docker) ===
   up:
