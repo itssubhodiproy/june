@@ -554,8 +554,8 @@ Status: 202 Accepted
 
 Side effects:
 - Identifies all cells where `status` is `"empty"` or `"stale"` AND document `parse_status` is `"ready"`.
-- Sets their status to `"extracting"`.
-- Enqueues one `extraction_tasks` Redis task per cell.
+- Bulk updates their status to `"extracting"`.
+- Enqueues ONE `extraction_tasks` Redis task for the table.
 
 Progress Tracking:
 There is no dedicated polling endpoint for job progress. Instead, clients should track progress in two ways:
@@ -563,6 +563,49 @@ There is no dedicated polling endpoint for job progress. Instead, clients should
 2. **State Sync**: Call `GET /api/tables/{table_id}` to load the latest status of all cells and documents. The `status` field in the `cells` array will transition from `"extracting"` to `"completed"` or `"error"`.
 
 Idempotent — safe to call multiple times. Only processes cells that need processing.
+
+---
+
+### GET /api/tables/{table_id}/extraction-manifest [INTERNAL]
+
+Called by the Extraction Worker to get the full list of cells and metadata for a run.
+
+```
+Response: {
+  "table_id": "tbl_abc123",
+  "cells": [
+    {
+      "cell_id": "cell_xyz",
+      "document_id": "doc_001",
+      "column_id": "col_003",
+      "column_title": "Liability Cap",
+      "column_prompt": "What is the aggregate liability cap?",
+      "column_type": "currency"
+    }
+  ]
+}
+Status: 200 OK
+```
+
+---
+
+### POST /api/tables/{table_id}/cells/bulk-update [INTERNAL]
+
+Called by the Extraction Worker to save a batch of results.
+
+```
+Request: [
+  {
+    "cell_id": "cell_xyz",
+    "status": "completed",
+    "answer": "12 months fees",
+    "reasoning": "...",
+    "source_references": [...]
+  }
+]
+Response: { "updated": 1 }
+Status: 200 OK
+```
 
 ---
 

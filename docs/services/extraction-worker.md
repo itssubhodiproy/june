@@ -8,7 +8,7 @@
 
 ## Responsibility
 
-Background queue consumer that populates cells with AI-extracted answers. For each cell task: retrieves relevant document chunks via semantic search (RAG), constructs a prompt with the column question and document context, calls the LLM, parses the structured response into answer + reasoning + source references, saves the result via API Server, and publishes an SSE event. Has no HTTP endpoints — it only consumes from Redis and calls other services.
+Background queue consumer that populates cells with AI-extracted answers. Consumes table-level tasks from Redis, fetches an extraction manifest from the API Server, then processes cells concurrently: for each cell, retrieves relevant document chunks via semantic search (RAG), constructs a prompt with the column question and document context, calls the LLM, parses the structured response into answer + reasoning + source references, publishes an SSE event per cell, and bulk-saves results via API Server. Has no HTTP endpoints — it only consumes from Redis and calls other services.
 
 ## Tech Stack
 
@@ -28,7 +28,7 @@ services/extraction-worker/
     ├── main.py                 ← Entry point: start consumer loop
     ├── config.py               ← Settings from env vars
     ├── consumer.py             ← Redis queue consumer loop
-    ├── handler.py              ← Orchestrates the full pipeline for one cell
+    ├── handler.py              ← Orchestrates the full pipeline for one table run
     │
     ├── rag/
     │   └── pipeline.py         ← Retrieve chunks, build context, rank
@@ -63,79 +63,52 @@ services/extraction-worker/
 
 ## Key Implementation Notes
 
-**Consumer loop.** Same pattern as Document Worker — infinite async loop with `BRPOP`. But critically different concurrency model: extraction is IO-bound (waiting on LLM responses), so we run many concurrent tasks.
+**Consumer loop.** The worker consumes table-level tasks. While processing a table, it maintains high concurrency internally (up to `MAX_CONCURRENT_EXTRACTIONS`) to ensure it doesn't process cells sequentially.
 
-```
+```python
 semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 
 async def consume():
     while True:
+        # Task now contains the scope of the run
         task = await redis.brpop("extraction_tasks")
-        asyncio.create_task(process_with_semaphore(task))
+        await handle_table_run(task)
 
-async def process_with_semaphore(task):
-    async with semaphore:
-        await handle_extraction(task)
+async def handle_table_run(task):
+    # 1. Fetch manifest (what cells need work?)
+    manifest = await api.get_extraction_manifest(task["table_id"])
+    
+    # 2. Process all cells in the manifest concurrently
+    tasks = [process_cell(cell) for cell in manifest["cells"]]
+    await asyncio.gather(*tasks)
 ```
 
-Unlike the Document Worker (1-2 concurrent, CPU-bound), this worker runs 20-50 concurrent extractions because each one is just waiting on an HTTP response from the LLM. The semaphore prevents exceeding API rate limits.
-
-**Task schema.** Each task from Redis contains everything the worker needs:
+**Task schema.** The Redis task is now a simple trigger. The worker fetches data from the API Server to ensure it has the freshest state.
 
 ```json
 {
-  "task_id": "task_001",
-  "job_id": "job_xyz",
   "table_id": "tbl_abc123",
-  "cell_id": "cell_xyz",
-  "document_id": "doc_001",
-  "column_id": "col_003",
-  "column_title": "Liability Cap",
-  "column_prompt": "What is the aggregate liability cap?",
-  "column_type": "currency"
+  "type": "run_all" // or "rerun_column", "rerun_cell"
 }
 ```
 
-Column details are embedded in the task so the worker never needs to query column metadata. The API Server includes them at enqueue time.
+**The pipeline for a Table Run:**
 
-**The pipeline for one cell:**
+1.  **Fetch Manifest**: `GET /api/tables/{table_id}/extraction-manifest`
+    Returns list of cells to extract, with their `document_id`, `column_prompt`, `column_type`, etc.
 
-```
-1. Retrieve relevant chunks (RAG)
-   GET /api/documents/{doc_id}/chunks?query={column_prompt}&top_k=10
-   → Returns ranked chunks with text, page number, section, chunk_id
-   (~50-200ms)
+2.  **Concurrency Management**: Use a global semaphore to process cells. Each cell task:
+    a. **Retrieve chunks (RAG)**: `GET /api/documents/{doc_id}/chunks?query={prompt}`
+    b. **Construct Prompt**: Context + Question + Output format.
+    c. **Call LLM**: Get structured response.
+    d. **Publish Real-time Event**: `PUBLISH cell_completed` (SSE Service).
+    e. **Buffer Result**: Add to local results batch.
 
-2. Build context from chunks
-   Concatenate chunk texts with page markers:
-   "[Page 1, Preamble] This Master Services Agreement..."
-   "[Page 14, Section 8.2] The aggregate liability..."
-   (~instant)
+3.  **Bulk Save**: Once a batch of cells (or the whole run) is done, save to DB:
+    `POST /api/tables/{table_id}/cells/bulk-update`
+    Body: `[ { "cell_id": "...", "status": "completed", "answer": "...", ... }, ... ]`
 
-3. Construct prompt
-   System prompt + document context + column question + response format
-   (~instant)
-
-4. Call LLM
-   Send prompt, receive structured JSON response
-   (~3-15 seconds, IO-bound)
-
-5. Parse and validate response
-   Extract answer, reasoning, source_references from JSON
-   Validate source page numbers exist in provided chunks
-   Type-check answer against column_type
-   (~instant)
-
-6. Save cell result via API Server
-   PUT /api/tables/{table_id}/cells/{cell_id}
-   Body: { status, answer, reasoning, source_references }
-   (~50-100ms)
-
-7. PUBLISH cell_completed event
-   { type: "cell_completed", cell_id, table_id, doc_id, col_id,
-     answer, reasoning, source_references }
-   Frontend: cell transitions from shimmer to answer text
-```
+4.  **Finalize**: Publish `run_completed` event.
 
 **Prompt design.** Two-part prompt — system prompt sets behavior, user prompt provides context and question:
 
@@ -262,11 +235,10 @@ This format lets the LLM cite back to specific chunk IDs, which the frontend use
 On failure:
 
 ```
-→ PUT /api/tables/{table_id}/cells/{cell_id}
-  { status: "error", error_message: "..." }
-→ PUBLISH cell_error event
+→ PUBLISH cell_error event (immediate, so frontend shows error state)
+→ Include in bulk-update batch: { cell_id, status: "error", error_message: "..." }
 → Frontend: cell shows error state (light red background)
-→ User can click "Retry" which calls POST /cells/{cell_id}/rerun
+→ User can click "Retry" which calls POST /tables/{table_id}/cells/{cell_id}/rerun
 ```
 
 **Graceful shutdown.** On SIGTERM:

@@ -70,20 +70,24 @@
 ```
 1. User clicks Run:
    POST /api/tables/{id}/run
-   → API Server finds all empty/stale cells, enqueues one task per cell
+   → API Server finds all empty/stale cells, sets them to "extracting"
+   → API Server enqueues ONE task per table run to Redis
 
-2. All target cells show skeleton shimmer animation
+2. Target cells show skeleton shimmer animation (triggered by immediate response)
 
-3. Extraction Worker picks up task:
-   GET /api/documents/{doc_id}/chunks?query={prompt} → top-K chunks (RAG)
-   → construct prompt with chunks + column question
-   → call LLM → parse structured response (answer, reasoning, source_references)
-   → PUT /api/tables/{id}/cells/{cell_id} → PUBLISH cell_completed event
+3. Extraction Worker picks up table task:
+   → GET /api/tables/{id}/extraction-manifest → list of all cells to process
+   → For each unique document: fetch common chunks? (optional optimization)
+   → For each cell concurrently:
+     → GET /api/documents/{doc_id}/chunks?query={prompt} (RAG)
+     → call LLM → parse response
+     → PUBLISH cell_completed event (SSE Service)
+   → Once finished or batch threshold reached:
+     → POST /api/tables/{id}/cells/bulk-update
 
-4. SSE Service pushes event → frontend updates cell: shimmer → fade-in answer text
+4. SSE Service pushes events → frontend updates cells individually: shimmer → answer text
 
-5. Repeats for all cells in parallel. Workers process at their own pace.
-   User sees cells filling in progressively.
+5. Final run_completed event informs frontend that the entire run is finished.
 ```
 
 ### Source Verification

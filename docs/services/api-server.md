@@ -39,8 +39,7 @@ services/api-server/
 │   │   ├── columns.py          ← /api/tables/{id}/columns/**
 │   │   ├── cells.py            ← /api/tables/{id}/cells/**
 │   │   ├── documents.py        ← /api/documents/**
-│   │   ├── extraction.py       ← /api/tables/{id}/run, rerun
-│   │   └── jobs.py             ← /api/jobs/**
+│   │   └── extraction.py       ← /api/tables/{id}/run, rerun, manifest
 │   │
 │   ├── models/                 ← SQLAlchemy ORM models
 │   │   ├── base.py             ← DeclarativeBase, common mixins
@@ -51,15 +50,13 @@ services/api-server/
 │   │   ├── cell.py
 │   │   ├── document.py
 │   │   ├── table_document.py
-│   │   ├── document_chunk.py   ← pgvector model
-│   │   └── job.py
+│   │   └── document_chunk.py   ← pgvector model
 │   │
 │   ├── schemas/                ← Pydantic request/response schemas
 │   │   ├── table.py
 │   │   ├── column.py
 │   │   ├── cell.py
-│   │   ├── document.py
-│   │   └── job.py
+│   │   └── document.py
 │   │
 │   ├── services/               ← Business logic (no HTTP, no DB imports)
 │   │   ├── table_service.py
@@ -135,16 +132,17 @@ WHERE column_id = {col_id} AND status = 'completed'
 
 **Run extraction logic.** `POST /api/tables/{id}/run` does three things in one request:
 1. Query all cells where `status IN ('empty', 'stale')` AND the document's `parse_status = 'ready'`
-2. Set their status to `'extracting'`
-3. For each cell, publish a task to the `extraction_tasks` Redis queue
-4. Create a `jobs` record with the total count
-5. Return `202 Accepted` with the job ID
+2. Bulk set their status to `'extracting'`
+3. Enqueue ONE task to the `extraction_tasks` Redis queue with the table ID
+4. Return `202 Accepted` with the count of cells triggered
+
+**Extraction manifest.** `GET /api/tables/{id}/extraction-manifest` returns all cells with `status = 'extracting'` along with their column metadata (title, prompt, type). Called by the Extraction Worker after picking up a task.
+
+**Bulk cell update.** `POST /api/tables/{id}/cells/bulk-update` accepts an array of cell results and updates them in a single transaction. Called by the Extraction Worker after processing cells.
 
 **Worker callbacks.** Both workers call back to the API Server via HTTP to save results:
 - Document Worker: `POST /api/documents/{id}/chunks` and `PATCH /api/documents/{id}`
-- Extraction Worker: `PUT /api/tables/{id}/cells/{cell_id}` (internal endpoint, not listed in public API — same route, but called by worker with service-level auth)
-
-The cell save endpoint atomically updates the cell AND increments `jobs.completed_cells` (or `failed_cells`). When `completed_cells + failed_cells = total_cells`, job status flips to `'completed'`.
+- Extraction Worker: `POST /api/tables/{id}/cells/bulk-update` (internal endpoint — called by worker with service-level auth)
 
 **Auto-save.** There is no "save" endpoint. Every mutation (create, update, delete) is persisted in the same request that performs it. The frontend shows a subtle "Saved" / "Saving..." indicator based on in-flight request count.
 

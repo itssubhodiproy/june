@@ -26,7 +26,7 @@ In-house legal teams, law firm associates, and contract analysts who review larg
 
 ## User Journey
 
-User creates a table → uploads PDFs (rows appear faded with a subtle pulse, become solid when parsed) → adds columns by writing a title, a natural language prompt, and selecting a type (free response, yes/no, date, currency, verbatim) → clicks Run → cells fill in progressively as extraction completes, each with a shimmer-to-content transition → clicks any cell to open the Memory Drawer showing answer, reasoning, and source chips for every column of that document → clicks a source chip to open the Document Viewer with the PDF scrolled to the exact page and the cited text highlighted with bounding-box precision → presses Escape to return to the table.
+User creates a table → uploads PDFs (rows appear faded with a subtle pulse, become solid when parsed) → adds columns by writing a title, a natural language prompt, and selecting a type (free response, yes/no, date, currency, verbatim) → clicks Run → a thin progress bar appears at the header’s bottom edge with a counter (e.g., "128 / 250") that updates in real-time as cells complete → cells fill in progressively as extraction completes, each with a shimmer-to-content transition → clicks any cell to open the Memory Drawer showing answer, reasoning, and source chips for every column of that document → clicks a source chip to open the Document Viewer with the PDF scrolled to the exact page and the cited text highlighted with bounding-box precision → presses Escape to return to the table.
 
 ### Layout States
 
@@ -57,7 +57,7 @@ All data — tables, documents, cells — is scoped to a workspace, not a user. 
 Tables:       Create, rename, delete, list, auto-save
 Documents:    Multi-file upload, delete (confirmation), two UI states (faded → solid)
 Columns:      Add (title + prompt + type), edit (marks cells stale), delete
-Extraction:   Global Run, progressive cell population via SSE, cell re-run, column re-run
+Extraction:   Manual "Run" button (active when empty/stale cells exist), progressive cell population via SSE, cell re-run, column re-run, thin progress bar with counter
 Cell:         Click → Memory Drawer (answer + reasoning + sources), row-level, accordion
 Doc Viewer:   Load PDF from S3, scroll to page, highlight cited text via bounding boxes
 Column Types: Free Response, Yes/No, Date, Currency, Verbatim

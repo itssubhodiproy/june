@@ -121,10 +121,6 @@ server {
         proxy_pass http://api;
     }
 
-    location /api/jobs/ {
-        proxy_pass http://api;
-    }
-
     # SSE routes (special proxy config for long-lived connections)
     location ~ ^/api/tables/[^/]+/events$ {
         proxy_pass http://sse;
@@ -209,24 +205,16 @@ Published by API Server when a document upload is confirmed. Consumed by Documen
 
 #### extraction_tasks
 
-Published by API Server when user clicks Run or Re-run. Consumed by Extraction Worker.
+Published by API Server when user clicks Run or Re-run. Consumed by Extraction Worker. Each task is a table-level trigger — the worker fetches the full cell manifest from the API Server.
 
 ```json
 {
-  "task_id": "task_002",
-  "job_id": "job_xyz",
   "table_id": "tbl_abc123",
-  "cell_id": "cell_xyz",
-  "document_id": "doc_001",
-  "column_id": "col_003",
-  "column_title": "Liability Cap",
-  "column_prompt": "What is the aggregate liability cap?",
-  "column_type": "currency",
-  "retry_count": 0
+  "type": "run_all"
 }
 ```
 
-Column details embedded in task so worker never queries column metadata.
+The worker calls `GET /api/tables/{table_id}/extraction-manifest` to get the list of cells to process with their column metadata. This ensures the worker always operates on the freshest state.
 
 ### Pub/Sub
 
@@ -244,9 +232,9 @@ Workers publish with `PUBLISH table:tbl_abc123 {event_json}`.
 | `doc_error` | Document Worker | `table:{table_id}` | `{ type, document_id, table_id, error }` |
 | `cell_completed` | Extraction Worker | `table:{table_id}` | `{ type, cell_id, table_id, document_id, column_id, answer, reasoning, source_references }` |
 | `cell_error` | Extraction Worker | `table:{table_id}` | `{ type, cell_id, table_id, document_id, column_id, error }` |
-| `run_completed` | API Server | `table:{table_id}` | `{ type, job_id, table_id, total, completed, failed }` |
+| `run_completed` | Extraction Worker | `table:{table_id}` | `{ type, table_id, total, completed, failed }` |
 
-`run_completed` is published by the API Server when it detects `completed_cells + failed_cells = total_cells` during a cell save callback.
+`run_completed` is published by the Extraction Worker after all cells in a manifest have been processed (completed or errored).
 
 ### Retry Policy
 
