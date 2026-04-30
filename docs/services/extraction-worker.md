@@ -1,8 +1,6 @@
-
-
 # Extraction Worker — Service Design
 
-*Last updated: 2025-07-01 · Status: Active*
+*Last updated: 2026-04-29 · Status: Active*
 
 ---
 
@@ -12,9 +10,9 @@ Background queue consumer that populates cells with AI-extracted answers. Consum
 
 ## Tech Stack
 
-- **Runtime:** Python 3.12
+- **Runtime:** Python 3.13+
 - **LLM Client:** OpenAI SDK / Anthropic SDK (abstracted for swap)
-- **Queue:** Redis via aioredis (BRPOP consumer)
+- **Queue:** Redis-native library (BRPOP consumer)
 - **Events:** Redis pub/sub (PUBLISH)
 - **HTTP Client:** httpx (async, calls API Server for RAG + save)
 
@@ -29,6 +27,7 @@ services/extraction-worker/
     ├── config.py               ← Settings from env vars
     ├── consumer.py             ← Redis queue consumer loop
     ├── handler.py              ← Orchestrates the full pipeline for one table run
+    ├── types.py                ← Pydantic models for tasks and events
     │
     ├── rag/
     │   └── pipeline.py         ← Retrieve chunks, build context, rank
@@ -49,6 +48,7 @@ services/extraction-worker/
 |----------|-------------|---------|
 | `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
 | `API_SERVER_URL` | API Server base URL | `http://api-server:8000` |
+| `INTERNAL_SERVICE_TOKEN` | Service-to-service auth token | `secret-token` |
 | `LLM_PROVIDER` | Which LLM to use | `openai` |
 | `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
 | `OPENAI_MODEL` | Model name | `gpt-4o` |
@@ -63,39 +63,57 @@ services/extraction-worker/
 
 ## Key Implementation Notes
 
-**Consumer loop.** The worker consumes table-level tasks. While processing a table, it maintains high concurrency internally (up to `MAX_CONCURRENT_EXTRACTIONS`) to ensure it doesn't process cells sequentially.
+**Consumer loop.** The worker runs an infinite async loop using `BRPOP` on the `extraction_tasks` queue. It follows the same `Consumer` class pattern as the document worker, with signal handling for graceful shutdown.
 
 ```python
-semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
+class Consumer:
+    async def run(self) -> None:
+        # Initialize clients and handler
+        redis = RedisClient()
+        api = ApiClient()
+        handler = ExtractionHandler(HandlerDependencies(redis=redis, api=api))
 
-async def consume():
-    while True:
-        # Task now contains the scope of the run
-        task = await redis.brpop("extraction_tasks")
-        await handle_table_run(task)
-
-async def handle_table_run(task):
-    # 1. Fetch manifest (what cells need work?)
-    manifest = await api.get_extraction_manifest(task["table_id"])
-    
-    # 2. Process all cells in the manifest concurrently
-    tasks = [process_cell(cell) for cell in manifest["cells"]]
-    await asyncio.gather(*tasks)
+        while not self._shutdown.is_set():
+            task = await redis.pop_extraction_task()
+            if task:
+                await self._process_task(task, redis, handler)
 ```
 
-**Task schema.** The Redis task is now a simple trigger. The worker fetches data from the API Server to ensure it has the freshest state.
+**Task handling.** The `ExtractionHandler` manages the table-level run. It maintains high concurrency internally (up to `MAX_CONCURRENT_EXTRACTIONS`) using `asyncio.Semaphore`.
+
+```python
+class ExtractionHandler:
+    def __init__(self, deps: HandlerDependencies) -> None:
+        self._deps = deps
+        self._semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_EXTRACTIONS)
+
+    async def handle(self, task: ExtractionTask) -> None:
+        # 1. Fetch manifest
+        manifest = await self._deps.api.get_extraction_manifest(task.table_id)
+        
+        # 2. Process all cells in the manifest concurrently
+        tasks = [self._process_cell(cell) for cell in manifest.cells]
+        await asyncio.gather(*tasks)
+
+        # 3. Final bulk save and event
+        await self._deps.api.bulk_update_cells(task.table_id, self._results_buffer)
+        await self._deps.redis.publish_run_completed(task.table_id)
+```
+
+**Task schema.** The Redis task is a simple trigger. The worker fetches data from the API Server to ensure it has the freshest state.
 
 ```json
 {
   "table_id": "tbl_abc123",
-  "type": "run_all" // or "rerun_column", "rerun_cell"
+  "type": "run_all", // run_all or run_rerun
+  "cell_id": "cell_xyz" // Optional filter for rerun
 }
 ```
 
 **The pipeline for a Table Run:**
 
-1.  **Fetch Manifest**: `GET /api/tables/{table_id}/extraction-manifest`
-    Returns list of cells to extract, with their `document_id`, `column_prompt`, `column_type`, etc.
+1.  **Fetch Manifest**: `GET /api/tables/{table_id}/extraction-manifest?cell_id={cell_id}`
+    Returns list of cells to extract, with their `document_id`, `column_prompt`, `column_type`, etc. Passing `cell_id` ensures workers only process intended targets during reruns.
 
 2.  **Concurrency Management**: Use a global semaphore to process cells. Each cell task:
     a. **Retrieve chunks (RAG)**: `GET /api/documents/{doc_id}/chunks?query={prompt}`
@@ -163,16 +181,13 @@ Response type: {column_type}
 1. Parse JSON from LLM response
    → If LLM returns markdown-wrapped JSON (```json...```), strip the wrapper
    → If JSON parse fails, retry LLM call once with "Respond in valid JSON"
-
 2. Validate required fields
    → answer, reasoning, source_references must all be present
    → source_references must be a non-empty array (unless answer is "Not found")
-
 3. Validate source references
    → Each chunk_id must match one of the chunks we provided
    → Each page number must match the chunk's actual page
    → If validation fails: keep the answer but flag source as unverified
-
 4. Type-check answer
    → Apply column-type-specific validation (table above)
    → If type check fails: keep the raw answer, log warning
@@ -180,7 +195,7 @@ Response type: {column_type}
 
 **LLM abstraction.** Same factory pattern as embedding client:
 
-```
+```python
 class LLMClient(ABC):
     async def complete(self, system_prompt, user_prompt, **kwargs) -> LLMResponse
 
@@ -189,13 +204,10 @@ class AnthropicClient(LLMClient):    # Alternative
 class InternalClient(LLMClient):     # Future: self-hosted model
 
 def get_llm_client() -> LLMClient:
-    provider = config.LLM_PROVIDER
+    provider = settings.LLM_PROVIDER
     if provider == "openai": return OpenAIClient(...)
     elif provider == "anthropic": return AnthropicClient(...)
-    elif provider == "internal": return InternalClient(base_url=config.LLM_SERVICE_URL)
 ```
-
-Switching from OpenAI to Anthropic = change `LLM_PROVIDER=anthropic`. Switching to self-hosted = change `LLM_PROVIDER=internal` and `LLM_SERVICE_URL=http://llm-service:8080`. No code changes.
 
 **RAG context building.** The pipeline retrieves top-K chunks by semantic similarity, then formats them as context:
 
@@ -217,18 +229,16 @@ Context template per chunk:
 {text_content}
 ```
 
-This format lets the LLM cite back to specific chunk IDs, which the frontend uses to fetch bounding boxes for highlighting.
-
-**Retry logic.**
+**Retry logic.** If any step fails, it follows the same retry pattern as the document worker, re-enqueuing the task with an incremented retry count.
 
 | Error | Retryable | Action |
 |-------|-----------|--------|
-| LLM API rate limit (429) | Yes | Re-enqueue with exponential backoff |
-| LLM API timeout | Yes | Re-enqueue with backoff |
+| LLM API rate limit (429) | Yes | Re-enqueue task |
+| LLM API timeout | Yes | Re-enqueue task |
 | LLM API auth failure (401) | No | Mark cell error, log critical alert |
 | LLM returned invalid JSON | Yes | Retry once inline (re-prompt), then re-enqueue |
-| LLM returned empty response | Yes | Re-enqueue with backoff |
-| API Server unreachable | Yes | Re-enqueue with backoff |
+| LLM returned empty response | Yes | Re-enqueue task |
+| API Server unreachable | Yes | Re-enqueue task |
 | RAG returned zero chunks | No | Mark cell with answer "Not found — no relevant content" |
 | All retries exhausted | — | Mark cell error, publish cell_error event |
 
@@ -241,11 +251,11 @@ On failure:
 → User can click "Retry" which calls POST /tables/{table_id}/cells/{cell_id}/rerun
 ```
 
-**Graceful shutdown.** On SIGTERM:
-- Stop accepting new tasks from queue
-- Wait for all in-flight LLM calls to complete (with timeout of 30 seconds)
-- If calls don't complete in 30 seconds, let them be re-processed by another instance (tasks that weren't saved are still in `extracting` status — a recovery job can re-enqueue them)
-- Close connections, exit
+**Graceful shutdown.** On SIGTERM (container stopping):
+- Finish processing the current table run if possible (or let it be re-picked by another worker)
+- Stop consuming new tasks from the queue
+- Close Redis and HTTP connections
+- Exit cleanly
 
 ## Scaling Characteristics
 
@@ -254,19 +264,10 @@ CPU:          Low (almost all time spent waiting on LLM HTTP response)
 Memory:       Moderate (LLM context strings in memory, ~50K tokens × 20 concurrent ≈ 200MB)
 Concurrency:  High (20-50 concurrent per instance)
 Bottleneck:   LLM API rate limits and latency
-
-1 instance  × 20 concurrent = ~120 cells/minute (at 10s avg per LLM call)
-5 instances × 20 concurrent = ~600 cells/minute
-10 instances × 30 concurrent = ~1800 cells/minute
-
-50 docs × 5 columns = 250 cells → ~2 min with 1 instance
-1K docs × 10 columns = 10K cells → ~17 min with 5 instances
-10K docs × 15 columns = 150K cells → ~83 min with 10 instances
 ```
 
 ## Testing Strategy
 
 - **Unit tests:** Prompt construction with known column types. Response parser with valid/invalid LLM outputs. Type validation per column type. Context builder with known chunks.
 - **Integration tests:** Full pipeline with mocked LLM (return canned JSON responses). Verify correct API Server calls, correct event publishing, correct error handling.
-- **Prompt tests:** Run actual LLM calls against a small set of known documents with expected answers. Not automated in CI (cost + latency), but run manually before prompt changes.
 - **Run:** `task ext:test` → `pytest tests/ -v`

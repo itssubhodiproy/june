@@ -210,11 +210,12 @@ Published by API Server when user clicks Run or Re-run. Consumed by Extraction W
 ```json
 {
   "table_id": "tbl_abc123",
-  "type": "run_all"
+  "type": "run_all",
+  "cell_id": "cell_xyz" // Optional: present for single-cell reruns
 }
 ```
 
-The worker calls `GET /api/tables/{table_id}/extraction-manifest` to get the list of cells to process with their column metadata. This ensures the worker always operates on the freshest state.
+The worker calls `GET /api/tables/{table_id}/extraction-manifest?cell_id={cell_id}` to get the specific cell(s) to process. This prevents "blind" reruns from duplicating work on other already-extracting cells.
 
 ### Pub/Sub
 

@@ -285,7 +285,7 @@ Frontend scales bounding box coordinates by `render_dpi / 72` to position highli
 
 ---
 
-### GET /api/documents/{doc_id}/chunks
+### GET /api/documents/{doc_id}/chunks [INTERNAL]
 
 Semantic search over a document's chunks. Used internally by the Extraction Worker for RAG retrieval.
 
@@ -310,7 +310,7 @@ Status: 200 OK
 
 ---
 
-### POST /api/documents/{doc_id}/chunks
+### POST /api/documents/{doc_id}/chunks [INTERNAL]
 
 Batch store chunks with embeddings. Called by Document Worker after parsing.
 
@@ -339,7 +339,7 @@ Status: 201 Created
 
 ---
 
-### PATCH /api/documents/{doc_id}
+### PATCH /api/documents/{doc_id} [INTERNAL]
 
 Update document metadata. Called by Document Worker when parsing completes or fails.
 
@@ -547,7 +547,7 @@ Request:  { }
 Response: {
   "table_id": "tbl_abc123",
   "total_cells": 200,
-  "status": "triggered"
+  "status": "extracting"
 }
 Status: 202 Accepted
 ```
@@ -568,9 +568,12 @@ Idempotent — safe to call multiple times. Only processes cells that need proce
 
 ### GET /api/tables/{table_id}/extraction-manifest [INTERNAL]
 
-Called by the Extraction Worker to get the full list of cells and metadata for a run.
+Called by the Extraction Worker to get the list of cells to process.
 
 ```
+Parameters:
+  cell_id: (Optional) UUID - Filter to a specific cell (used for reruns)
+
 Response: {
   "table_id": "tbl_abc123",
   "cells": [

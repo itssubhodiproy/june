@@ -130,13 +130,15 @@ UPDATE cells SET status = 'stale', updated_at = now()
 WHERE column_id = {col_id} AND status = 'completed'
 ```
 
-**Run extraction logic.** `POST /api/tables/{id}/run` does three things in one request:
-1. Query all cells where `status IN ('empty', 'stale')` AND the document's `parse_status = 'ready'`
-2. Bulk set their status to `'extracting'`
-3. Enqueue ONE task to the `extraction_tasks` Redis queue with the table ID
-4. Return `202 Accepted` with the count of cells triggered
+**Run extraction logic.** `POST /api/tables/{id}/run` (and `rerun`) follows a strict reliability pattern:
+1. Query targets (empty/stale cells for Run All, specific cell for Rerun).
+2. Set their status to `'extracting'`.
+3. **Enqueue task to Redis.**
+4. **Commit DB transaction.** 
 
-**Extraction manifest.** `GET /api/tables/{id}/extraction-manifest` returns all cells with `status = 'extracting'` along with their column metadata (title, prompt, type). Called by the Extraction Worker after picking up a task.
+Committing *after* enqueuing ensures that if the queue is down, the DB transaction fails, and cells are not left stuck in `'extracting'` state.
+
+**Extraction manifest.** `GET /api/tables/{id}/extraction-manifest` returns all cells with `status = 'extracting'` along with their column metadata. Supports an optional `cell_id` query parameter to scope the manifest for reruns.
 
 **Bulk cell update.** `POST /api/tables/{id}/cells/bulk-update` accepts an array of cell results and updates them in a single transaction. Called by the Extraction Worker after processing cells.
 
