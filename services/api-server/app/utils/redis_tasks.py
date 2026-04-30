@@ -19,3 +19,18 @@ async def enqueue_document_parsing(
         "retry_count": 0,
     }
     await redis.lpush("document_parsing", json.dumps(payload))
+
+async def enqueue_extraction_run(
+    redis: Redis,
+    *,
+    table_id: UUID,
+    type: str = "run_all",
+    cell_id: UUID | None = None,
+) -> None:
+    payload = {
+        "table_id": str(table_id),
+        "type": type,
+    }
+    if cell_id:
+        payload["cell_id"] = str(cell_id)
+    await redis.lpush("extraction_tasks", json.dumps(payload))
