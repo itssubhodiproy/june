@@ -14,6 +14,8 @@ from app.dependencies import (
 )
 from app.models.user import User
 from app.schemas.document import (
+    DocumentChunkSearchRequest,
+    DocumentChunkSearchResponse,
     DocumentChunksCreateRequest,
     DocumentChunksCreateResponse,
     DocumentConfirmResponse,
@@ -43,6 +45,28 @@ async def create_document_upload_url(
             file_name=data.file_name,
             file_type=data.file_type,
             file_size=data.file_size,
+        )
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+
+
+@router.post("/{doc_id}/chunk-search", response_model=DocumentChunkSearchResponse)
+async def search_document_chunks(
+    doc_id: UUID,
+    data: DocumentChunkSearchRequest,
+    db: AsyncSession = Depends(get_db),
+    storage: StorageService = Depends(get_storage_service),
+    _: None = Depends(require_internal_service),
+):
+    document_service = DocumentService(db, storage)
+    try:
+        return await document_service.search_chunks_by_embedding(
+            document_id=doc_id,
+            query_embedding=data.query_embedding,
+            top_k=data.top_k,
         )
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

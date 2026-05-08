@@ -41,6 +41,28 @@ class DocumentChunksCreateResponse(BaseModel):
     stored: int
 
 
+class DocumentChunkSearchRequest(BaseModel):
+    query_embedding: list[float] = Field(
+        min_length=settings.EMBEDDING_DIMENSION,
+        max_length=settings.EMBEDDING_DIMENSION,
+    )
+    top_k: int = Field(default=10, ge=1, le=100)
+
+
+class DocumentChunkSearchItem(BaseModel):
+    id: UUID
+    chunk_index: int
+    text_content: str
+    page_number: int
+    section: str | None = None
+    similarity_score: float
+    bbox: BoundingBox
+
+
+class DocumentChunkSearchResponse(BaseModel):
+    chunks: list[DocumentChunkSearchItem]
+
+
 class DocumentUploadUrlRequest(BaseModel):
     file_name: str = Field(min_length=1, max_length=255)
     file_type: str = Field(min_length=1, max_length=100)

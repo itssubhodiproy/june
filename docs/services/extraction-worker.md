@@ -1,20 +1,18 @@
-
-
 # Extraction Worker — Service Design
 
-*Last updated: 2025-07-01 · Status: Active*
+*Last updated: 2026-04-29 · Status: Active*
 
 ---
 
 ## Responsibility
 
-Background queue consumer that populates cells with AI-extracted answers. For each cell task: retrieves relevant document chunks via semantic search (RAG), constructs a prompt with the column question and document context, calls the LLM, parses the structured response into answer + reasoning + source references, saves the result via API Server, and publishes an SSE event. Has no HTTP endpoints — it only consumes from Redis and calls other services.
+Background queue consumer that populates cells with AI-extracted answers. Consumes table-level tasks from Redis, fetches an extraction manifest from the API Server, then processes cells concurrently: for each cell, retrieves relevant document chunks via semantic search (RAG), constructs a prompt with the column question and document context, calls the LLM, parses the structured response into answer + reasoning + source references, publishes an SSE event per cell, and bulk-saves results via API Server. Has no HTTP endpoints — it only consumes from Redis and calls other services.
 
 ## Tech Stack
 
-- **Runtime:** Python 3.12
+- **Runtime:** Python 3.13+
 - **LLM Client:** OpenAI SDK / Anthropic SDK (abstracted for swap)
-- **Queue:** Redis via aioredis (BRPOP consumer)
+- **Queue:** Redis-native library (BRPOP consumer)
 - **Events:** Redis pub/sub (PUBLISH)
 - **HTTP Client:** httpx (async, calls API Server for RAG + save)
 
@@ -28,7 +26,8 @@ services/extraction-worker/
     ├── main.py                 ← Entry point: start consumer loop
     ├── config.py               ← Settings from env vars
     ├── consumer.py             ← Redis queue consumer loop
-    ├── handler.py              ← Orchestrates the full pipeline for one cell
+    ├── handler.py              ← Orchestrates the full pipeline for one table run
+    ├── types.py                ← Pydantic models for tasks and events
     │
     ├── rag/
     │   └── pipeline.py         ← Retrieve chunks, build context, rank
@@ -49,6 +48,7 @@ services/extraction-worker/
 |----------|-------------|---------|
 | `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
 | `API_SERVER_URL` | API Server base URL | `http://api-server:8000` |
+| `INTERNAL_SERVICE_TOKEN` | Service-to-service auth token | `secret-token` |
 | `LLM_PROVIDER` | Which LLM to use | `openai` |
 | `OPENAI_API_KEY` | OpenAI API key | `sk-...` |
 | `OPENAI_MODEL` | Model name | `gpt-4o` |
@@ -63,104 +63,82 @@ services/extraction-worker/
 
 ## Key Implementation Notes
 
-**Consumer loop.** Same pattern as Document Worker — infinite async loop with `BRPOP`. But critically different concurrency model: extraction is IO-bound (waiting on LLM responses), so we run many concurrent tasks.
+**Consumer loop.** The worker runs an infinite async loop using `BRPOP` on the `extraction_tasks` queue. It follows the same `Consumer` class pattern as the document worker, with signal handling for graceful shutdown.
 
+```python
+class Consumer:
+    async def run(self) -> None:
+        # Initialize clients and handler
+        redis = RedisClient()
+        api = ApiClient()
+        handler = ExtractionHandler(HandlerDependencies(redis=redis, api=api))
+
+        while not self._shutdown.is_set():
+            task = await redis.pop_extraction_task()
+            if task:
+                await self._process_task(task, redis, handler)
 ```
-semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 
-async def consume():
-    while True:
-        task = await redis.brpop("extraction_tasks")
-        asyncio.create_task(process_with_semaphore(task))
+**Task handling.** The `ExtractionHandler` manages the table-level run. It maintains high concurrency internally (up to `MAX_CONCURRENT_EXTRACTIONS`) using `asyncio.Semaphore`.
 
-async def process_with_semaphore(task):
-    async with semaphore:
-        await handle_extraction(task)
+```python
+class ExtractionHandler:
+    def __init__(self, deps: HandlerDependencies) -> None:
+        self._deps = deps
+        self._semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_EXTRACTIONS)
+
+    async def handle(self, task: ExtractionTask) -> None:
+        # 1. Fetch manifest
+        manifest = await self._deps.api.get_extraction_manifest(task.table_id)
+        
+        # 2. Process all cells in the manifest concurrently
+        tasks = [self._process_cell(cell) for cell in manifest.cells]
+        await asyncio.gather(*tasks)
+
+        # 3. Final bulk save and event
+        await self._deps.api.bulk_update_cells(task.table_id, self._results_buffer)
+        await self._deps.redis.publish_run_completed(task.table_id)
 ```
 
-Unlike the Document Worker (1-2 concurrent, CPU-bound), this worker runs 20-50 concurrent extractions because each one is just waiting on an HTTP response from the LLM. The semaphore prevents exceeding API rate limits.
-
-**Task schema.** Each task from Redis contains everything the worker needs:
+**Task schema.** The Redis task is a simple trigger. The worker fetches data from the API Server to ensure it has the freshest state.
 
 ```json
 {
-  "task_id": "task_001",
-  "job_id": "job_xyz",
   "table_id": "tbl_abc123",
-  "cell_id": "cell_xyz",
-  "document_id": "doc_001",
-  "column_id": "col_003",
-  "column_title": "Liability Cap",
-  "column_prompt": "What is the aggregate liability cap?",
-  "column_type": "currency"
+  "type": "run_all", // run_all or run_rerun
+  "cell_id": "cell_xyz" // Optional filter for rerun
 }
 ```
 
-Column details are embedded in the task so the worker never needs to query column metadata. The API Server includes them at enqueue time.
+**The pipeline for a Table Run:**
 
-**The pipeline for one cell:**
+1.  **Fetch Manifest**: `GET /api/tables/{table_id}/extraction-manifest?cell_id={cell_id}`
+    Returns list of cells to extract, with their `document_id`, `column_prompt`, `column_type`, etc. Passing `cell_id` ensures workers only process intended targets during reruns.
 
-```
-1. Retrieve relevant chunks (RAG)
-   GET /api/documents/{doc_id}/chunks?query={column_prompt}&top_k=10
-   → Returns ranked chunks with text, page number, section, chunk_id
-   (~50-200ms)
+2.  **Concurrency Management**: Use a global semaphore to process cells. Each cell task:
+    a. **Embed query + Retrieve chunks (RAG)**:
+       → embed `column_prompt` inside Extraction Worker
+       → `POST /api/documents/{doc_id}/chunk-search`
+    b. **Construct Prompt**: Context + Question + Output format.
+    c. **Call LLM**: Get structured response.
+    d. **Publish Real-time Event**: `PUBLISH cell_completed` (SSE Service).
+    e. **Buffer Result**: Add to local results batch.
 
-2. Build context from chunks
-   Concatenate chunk texts with page markers:
-   "[Page 1, Preamble] This Master Services Agreement..."
-   "[Page 14, Section 8.2] The aggregate liability..."
-   (~instant)
+3.  **Bulk Save**: Once a batch of cells (or the whole run) is done, save to DB:
+    `POST /api/tables/{table_id}/cells/bulk-update`
+    Body: `[ { "cell_id": "...", "status": "completed", "answer": "...", ... }, ... ]`
 
-3. Construct prompt
-   System prompt + document context + column question + response format
-   (~instant)
+4.  **Finalize**: Publish `run_completed` event.
 
-4. Call LLM
-   Send prompt, receive structured JSON response
-   (~3-15 seconds, IO-bound)
-
-5. Parse and validate response
-   Extract answer, reasoning, source_references from JSON
-   Validate source page numbers exist in provided chunks
-   Type-check answer against column_type
-   (~instant)
-
-6. Save cell result via API Server
-   PUT /api/tables/{table_id}/cells/{cell_id}
-   Body: { status, answer, reasoning, source_references }
-   (~50-100ms)
-
-7. PUBLISH cell_completed event
-   { type: "cell_completed", cell_id, table_id, doc_id, col_id,
-     answer, reasoning, source_references }
-   Frontend: cell transitions from shimmer to answer text
-```
-
-**Prompt design.** Two-part prompt — system prompt sets behavior, user prompt provides context and question:
+**Prompt design.** Two-part prompt — system prompt stays thin, user prompt carries context and question:
 
 ```
 SYSTEM PROMPT:
-You are a legal document analyst. You extract specific information
-from legal documents with precision. You always cite your sources.
-
-You respond in JSON with exactly this structure:
-{
-  "answer": "...",
-  "reasoning": "...",
-  "source_references": [
-    { "chunk_id": "...", "page": N, "section": "...", "quote": "..." }
-  ]
-}
-
-Rules:
-- answer: Direct answer to the question. Match the requested type.
-- reasoning: Explain how you found this answer. Reference specific
-  sections and clauses. If not found, explain what you searched for.
-- source_references: Every claim must cite a chunk_id, page, section,
-  and a verbatim quote (max 100 words) from the source text.
-- If the document does not contain the requested information,
-  answer with "Not found" and explain in reasoning.
+Use only the provided document context.
+Answer the question directly.
+Include supporting citations from the provided chunks only.
+Do not invent facts, citations, sections, or quotes.
+If the answer is not present in the context, answer "Not found".
 
 
 USER PROMPT:
@@ -172,6 +150,7 @@ Document context:
 
 Question: {column_prompt}
 Response type: {column_type}
+Type-specific instruction: {type_hint}
 ```
 
 **Column type enforcement.** The prompt includes the expected response type, and the response parser validates it:
@@ -184,30 +163,21 @@ Response type: {column_type}
 | `currency` | "Respond with a dollar amount or formula." | Contains numeric value or "Not found" |
 | `verbatim` | "Extract the exact text. Do not paraphrase." | Must be a substring of provided context |
 
-**Response parsing.** The LLM response is expected as JSON. The parser handles:
+**Response parsing.** The worker uses native structured outputs. The parser only handles logical validation after the SDK has already produced a type-safe object.
 
 ```
-1. Parse JSON from LLM response
-   → If LLM returns markdown-wrapped JSON (```json...```), strip the wrapper
-   → If JSON parse fails, retry LLM call once with "Respond in valid JSON"
-
-2. Validate required fields
-   → answer, reasoning, source_references must all be present
-   → source_references must be a non-empty array (unless answer is "Not found")
-
-3. Validate source references
+1. SDK parses the structured response directly into the expected model
+2. Validate source references
    → Each chunk_id must match one of the chunks we provided
    → Each page number must match the chunk's actual page
-   → If validation fails: keep the answer but flag source as unverified
-
-4. Type-check answer
+3. Type-check answer
    → Apply column-type-specific validation (table above)
-   → If type check fails: keep the raw answer, log warning
+   → If type check fails: raise worker-side validation error
 ```
 
 **LLM abstraction.** Same factory pattern as embedding client:
 
-```
+```python
 class LLMClient(ABC):
     async def complete(self, system_prompt, user_prompt, **kwargs) -> LLMResponse
 
@@ -216,25 +186,23 @@ class AnthropicClient(LLMClient):    # Alternative
 class InternalClient(LLMClient):     # Future: self-hosted model
 
 def get_llm_client() -> LLMClient:
-    provider = config.LLM_PROVIDER
+    provider = settings.LLM_PROVIDER
     if provider == "openai": return OpenAIClient(...)
     elif provider == "anthropic": return AnthropicClient(...)
-    elif provider == "internal": return InternalClient(base_url=config.LLM_SERVICE_URL)
 ```
 
-Switching from OpenAI to Anthropic = change `LLM_PROVIDER=anthropic`. Switching to self-hosted = change `LLM_PROVIDER=internal` and `LLM_SERVICE_URL=http://llm-service:8080`. No code changes.
-
-**RAG context building.** The pipeline retrieves top-K chunks by semantic similarity, then formats them as context:
+**RAG context building.** The pipeline embeds the query in the Extraction Worker, asks the API Server to run pgvector search, reranks the returned chunks, then formats them as context:
 
 ```
-1. Send column_prompt as the search query
-2. API Server performs pgvector similarity search
-3. Returns top-K chunks ordered by relevance
-4. Worker concatenates into context string with page markers
-5. If total context exceeds ~50K tokens:
+1. Embed `column_prompt` with the worker-side embedding client
+2. Send embedding to API Server chunk-search endpoint
+3. API Server performs pgvector similarity search
+4. Returns top-K chunks ordered by relevance
+5. Worker reranks those chunks
+6. Worker concatenates top reranked chunks into context string with page markers
+7. If total context exceeds the context limit:
    → Trim to top chunks that fit within context window
-   → Prefer higher-similarity chunks
-6. Include chunk_ids in context so LLM can reference them in citations
+8. Include chunk_ids in context so LLM can reference them in citations
 ```
 
 Context template per chunk:
@@ -244,36 +212,33 @@ Context template per chunk:
 {text_content}
 ```
 
-This format lets the LLM cite back to specific chunk IDs, which the frontend uses to fetch bounding boxes for highlighting.
-
-**Retry logic.**
+**Retry logic.** If any step fails, it follows the same retry pattern as the document worker, re-enqueuing the task with an incremented retry count.
 
 | Error | Retryable | Action |
 |-------|-----------|--------|
-| LLM API rate limit (429) | Yes | Re-enqueue with exponential backoff |
-| LLM API timeout | Yes | Re-enqueue with backoff |
+| LLM API rate limit (429) | Yes | Re-enqueue task |
+| LLM API timeout | Yes | Re-enqueue task |
 | LLM API auth failure (401) | No | Mark cell error, log critical alert |
 | LLM returned invalid JSON | Yes | Retry once inline (re-prompt), then re-enqueue |
-| LLM returned empty response | Yes | Re-enqueue with backoff |
-| API Server unreachable | Yes | Re-enqueue with backoff |
+| LLM returned empty response | Yes | Re-enqueue task |
+| API Server unreachable | Yes | Re-enqueue task |
 | RAG returned zero chunks | No | Mark cell with answer "Not found — no relevant content" |
 | All retries exhausted | — | Mark cell error, publish cell_error event |
 
 On failure:
 
 ```
-→ PUT /api/tables/{table_id}/cells/{cell_id}
-  { status: "error", error_message: "..." }
-→ PUBLISH cell_error event
+→ PUBLISH cell_error event (immediate, so frontend shows error state)
+→ Include in bulk-update batch: { cell_id, status: "error", error_message: "..." }
 → Frontend: cell shows error state (light red background)
-→ User can click "Retry" which calls POST /cells/{cell_id}/rerun
+→ User can click "Retry" which calls POST /tables/{table_id}/cells/{cell_id}/rerun
 ```
 
-**Graceful shutdown.** On SIGTERM:
-- Stop accepting new tasks from queue
-- Wait for all in-flight LLM calls to complete (with timeout of 30 seconds)
-- If calls don't complete in 30 seconds, let them be re-processed by another instance (tasks that weren't saved are still in `extracting` status — a recovery job can re-enqueue them)
-- Close connections, exit
+**Graceful shutdown.** On SIGTERM (container stopping):
+- Finish processing the current table run if possible (or let it be re-picked by another worker)
+- Stop consuming new tasks from the queue
+- Close Redis and HTTP connections
+- Exit cleanly
 
 ## Scaling Characteristics
 
@@ -282,19 +247,10 @@ CPU:          Low (almost all time spent waiting on LLM HTTP response)
 Memory:       Moderate (LLM context strings in memory, ~50K tokens × 20 concurrent ≈ 200MB)
 Concurrency:  High (20-50 concurrent per instance)
 Bottleneck:   LLM API rate limits and latency
-
-1 instance  × 20 concurrent = ~120 cells/minute (at 10s avg per LLM call)
-5 instances × 20 concurrent = ~600 cells/minute
-10 instances × 30 concurrent = ~1800 cells/minute
-
-50 docs × 5 columns = 250 cells → ~2 min with 1 instance
-1K docs × 10 columns = 10K cells → ~17 min with 5 instances
-10K docs × 15 columns = 150K cells → ~83 min with 10 instances
 ```
 
 ## Testing Strategy
 
 - **Unit tests:** Prompt construction with known column types. Response parser with valid/invalid LLM outputs. Type validation per column type. Context builder with known chunks.
 - **Integration tests:** Full pipeline with mocked LLM (return canned JSON responses). Verify correct API Server calls, correct event publishing, correct error handling.
-- **Prompt tests:** Run actual LLM calls against a small set of known documents with expected answers. Not automated in CI (cost + latency), but run manually before prompt changes.
 - **Run:** `task ext:test` → `pytest tests/ -v`

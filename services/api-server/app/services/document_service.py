@@ -207,6 +207,48 @@ class DocumentService:
 
         return {"stored": len(chunks)}
 
+    async def search_chunks_by_embedding(
+        self,
+        *,
+        document_id: UUID,
+        query_embedding: list[float],
+        top_k: int,
+    ) -> dict:
+        document = await self._get_document_by_id(document_id=document_id)
+
+        distance = DocumentChunk.embedding.cosine_distance(query_embedding)
+        similarity_score = (1 - distance).label("similarity_score")
+
+        result = await self.db.execute(
+            select(
+                DocumentChunk.id,
+                DocumentChunk.chunk_index,
+                DocumentChunk.text_content,
+                DocumentChunk.page_number,
+                DocumentChunk.section,
+                DocumentChunk.bbox,
+                similarity_score,
+            )
+            .where(DocumentChunk.document_id == document.id)
+            .order_by(distance.asc())
+            .limit(top_k)
+        )
+
+        return {
+            "chunks": [
+                {
+                    "id": row.id,
+                    "chunk_index": row.chunk_index,
+                    "text_content": row.text_content,
+                    "page_number": row.page_number,
+                    "section": row.section,
+                    "bbox": row.bbox,
+                    "similarity_score": float(row.similarity_score),
+                }
+                for row in result.all()
+            ]
+        }
+
     async def update_document(
         self,
         *,

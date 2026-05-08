@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+  # === Development ===
+  dev:
+    desc: Run extraction worker
+    cmds:
+      - uv run python -m app.main
+
+  # === Build ===
+  build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t june-extraction-worker .
+
+  # === Testing ===
+  test:
+    desc: Run tests
+    cmds:
+      - pytest tests/ -v
+
+  # === Code Quality ===
+  lint:
+    desc: Run linter
+    cmds:
+      - ruff check app/
+
+  format:
+    desc: Format code
+    cmds:
+      - ruff format app/

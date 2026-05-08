@@ -285,12 +285,15 @@ Frontend scales bounding box coordinates by `render_dpi / 72` to position highli
 
 ---
 
-### GET /api/documents/{doc_id}/chunks
+### POST /api/documents/{doc_id}/chunk-search [INTERNAL]
 
-Semantic search over a document's chunks. Used internally by the Extraction Worker for RAG retrieval.
+Vector search over a document's chunks. Used internally by the Extraction Worker for RAG retrieval.
 
 ```
-Query params: ?query=liability+cap&top_k=10
+Request: {
+  "query_embedding": [0.023, -0.041, 0.067, ...],
+  "top_k": 20
+}
 
 Response: {
   "chunks": [
@@ -310,7 +313,7 @@ Status: 200 OK
 
 ---
 
-### POST /api/documents/{doc_id}/chunks
+### POST /api/documents/{doc_id}/chunks [INTERNAL]
 
 Batch store chunks with embeddings. Called by Document Worker after parsing.
 
@@ -339,7 +342,7 @@ Status: 201 Created
 
 ---
 
-### PATCH /api/documents/{doc_id}
+### PATCH /api/documents/{doc_id} [INTERNAL]
 
 Update document metadata. Called by Document Worker when parsing completes or fails.
 
@@ -547,15 +550,15 @@ Request:  { }
 Response: {
   "table_id": "tbl_abc123",
   "total_cells": 200,
-  "status": "triggered"
+  "status": "extracting"
 }
 Status: 202 Accepted
 ```
 
 Side effects:
 - Identifies all cells where `status` is `"empty"` or `"stale"` AND document `parse_status` is `"ready"`.
-- Sets their status to `"extracting"`.
-- Enqueues one `extraction_tasks` Redis task per cell.
+- Bulk updates their status to `"extracting"`.
+- Enqueues ONE `extraction_tasks` Redis task for the table.
 
 Progress Tracking:
 There is no dedicated polling endpoint for job progress. Instead, clients should track progress in two ways:
@@ -563,6 +566,52 @@ There is no dedicated polling endpoint for job progress. Instead, clients should
 2. **State Sync**: Call `GET /api/tables/{table_id}` to load the latest status of all cells and documents. The `status` field in the `cells` array will transition from `"extracting"` to `"completed"` or `"error"`.
 
 Idempotent — safe to call multiple times. Only processes cells that need processing.
+
+---
+
+### GET /api/tables/{table_id}/extraction-manifest [INTERNAL]
+
+Called by the Extraction Worker to get the list of cells to process.
+
+```
+Parameters:
+  cell_id: (Optional) UUID - Filter to a specific cell (used for reruns)
+
+Response: {
+  "table_id": "tbl_abc123",
+  "cells": [
+    {
+      "cell_id": "cell_xyz",
+      "document_id": "doc_001",
+      "column_id": "col_003",
+      "column_title": "Liability Cap",
+      "column_prompt": "What is the aggregate liability cap?",
+      "column_type": "currency"
+    }
+  ]
+}
+Status: 200 OK
+```
+
+---
+
+### POST /api/tables/{table_id}/cells/bulk-update [INTERNAL]
+
+Called by the Extraction Worker to save a batch of results.
+
+```
+Request: [
+  {
+    "cell_id": "cell_xyz",
+    "status": "completed",
+    "answer": "12 months fees",
+    "reasoning": "...",
+    "source_references": [...]
+  }
+]
+Response: { "updated": 1 }
+Status: 200 OK
+```
 
 ---
 

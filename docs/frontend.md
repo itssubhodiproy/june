@@ -76,7 +76,7 @@ frontend/
     │   ├── ui/                     ← shadcn components (button, input, dialog, etc.)
     │   │
     │   ├── table/
-    │   │   ├── table-header.tsx    ← Title, +Document, +Column, Run, save indicator
+    │   │   ├── table-header.tsx    ← Title, +Document, +Column, Run button, progress bar
     │   │   ├── table-grid.tsx      ← TanStack Table wrapper
     │   │   ├── column-header.tsx   ← Title, type badge, edit/delete menu
     │   │   ├── document-cell.tsx   ← File name, icon, faded/solid states
@@ -152,7 +152,8 @@ frontend/
 │                       │   ├── <TableTitle>              ← Editable inline, auto-save on blur
 │                       │   ├── <UploadButton>             ← File picker, multi-select
 │                       │   ├── <AddColumnButton>          ← Opens <ColumnForm>
-│                       │   ├── <RunButton>                ← Disabled when nothing to run
+│                       │   ├── <RunButton>                ← "Run" — active when empty/stale cells exist, disabled otherwise
+│                       │   ├── <ProgressBar>              ← Thin 2px bar at header bottom edge + "128 / 250" counter
 │                       │   └── <SaveIndicator>
 │                       │
 │                       ├── <TableGrid>                    ← TanStack Table
