@@ -115,7 +115,7 @@ class ExtractionService:
         ]
 
         stmt = (
-            update(Cell)
+            update(Cell.__table__)
             .where(Cell.id == bindparam("cell_id"), Cell.table_id == table_id)
             .values(
                 status=bindparam("status"),

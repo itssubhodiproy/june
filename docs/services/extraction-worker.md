@@ -116,7 +116,9 @@ class ExtractionHandler:
     Returns list of cells to extract, with their `document_id`, `column_prompt`, `column_type`, etc. Passing `cell_id` ensures workers only process intended targets during reruns.
 
 2.  **Concurrency Management**: Use a global semaphore to process cells. Each cell task:
-    a. **Retrieve chunks (RAG)**: `GET /api/documents/{doc_id}/chunks?query={prompt}`
+    a. **Embed query + Retrieve chunks (RAG)**:
+       → embed `column_prompt` inside Extraction Worker
+       → `POST /api/documents/{doc_id}/chunk-search`
     b. **Construct Prompt**: Context + Question + Output format.
     c. **Call LLM**: Get structured response.
     d. **Publish Real-time Event**: `PUBLISH cell_completed` (SSE Service).
@@ -128,30 +130,15 @@ class ExtractionHandler:
 
 4.  **Finalize**: Publish `run_completed` event.
 
-**Prompt design.** Two-part prompt — system prompt sets behavior, user prompt provides context and question:
+**Prompt design.** Two-part prompt — system prompt stays thin, user prompt carries context and question:
 
 ```
 SYSTEM PROMPT:
-You are a legal document analyst. You extract specific information
-from legal documents with precision. You always cite your sources.
-
-You respond in JSON with exactly this structure:
-{
-  "answer": "...",
-  "reasoning": "...",
-  "source_references": [
-    { "chunk_id": "...", "page": N, "section": "...", "quote": "..." }
-  ]
-}
-
-Rules:
-- answer: Direct answer to the question. Match the requested type.
-- reasoning: Explain how you found this answer. Reference specific
-  sections and clauses. If not found, explain what you searched for.
-- source_references: Every claim must cite a chunk_id, page, section,
-  and a verbatim quote (max 100 words) from the source text.
-- If the document does not contain the requested information,
-  answer with "Not found" and explain in reasoning.
+Use only the provided document context.
+Answer the question directly.
+Include supporting citations from the provided chunks only.
+Do not invent facts, citations, sections, or quotes.
+If the answer is not present in the context, answer "Not found".
 
 
 USER PROMPT:
@@ -163,6 +150,7 @@ Document context:
 
 Question: {column_prompt}
 Response type: {column_type}
+Type-specific instruction: {type_hint}
 ```
 
 **Column type enforcement.** The prompt includes the expected response type, and the response parser validates it:
@@ -175,22 +163,16 @@ Response type: {column_type}
 | `currency` | "Respond with a dollar amount or formula." | Contains numeric value or "Not found" |
 | `verbatim` | "Extract the exact text. Do not paraphrase." | Must be a substring of provided context |
 
-**Response parsing.** The LLM response is expected as JSON. The parser handles:
+**Response parsing.** The worker uses native structured outputs. The parser only handles logical validation after the SDK has already produced a type-safe object.
 
 ```
-1. Parse JSON from LLM response
-   → If LLM returns markdown-wrapped JSON (```json...```), strip the wrapper
-   → If JSON parse fails, retry LLM call once with "Respond in valid JSON"
-2. Validate required fields
-   → answer, reasoning, source_references must all be present
-   → source_references must be a non-empty array (unless answer is "Not found")
-3. Validate source references
+1. SDK parses the structured response directly into the expected model
+2. Validate source references
    → Each chunk_id must match one of the chunks we provided
    → Each page number must match the chunk's actual page
-   → If validation fails: keep the answer but flag source as unverified
-4. Type-check answer
+3. Type-check answer
    → Apply column-type-specific validation (table above)
-   → If type check fails: keep the raw answer, log warning
+   → If type check fails: raise worker-side validation error
 ```
 
 **LLM abstraction.** Same factory pattern as embedding client:
@@ -209,17 +191,18 @@ def get_llm_client() -> LLMClient:
     elif provider == "anthropic": return AnthropicClient(...)
 ```
 
-**RAG context building.** The pipeline retrieves top-K chunks by semantic similarity, then formats them as context:
+**RAG context building.** The pipeline embeds the query in the Extraction Worker, asks the API Server to run pgvector search, reranks the returned chunks, then formats them as context:
 
 ```
-1. Send column_prompt as the search query
-2. API Server performs pgvector similarity search
-3. Returns top-K chunks ordered by relevance
-4. Worker concatenates into context string with page markers
-5. If total context exceeds ~50K tokens:
+1. Embed `column_prompt` with the worker-side embedding client
+2. Send embedding to API Server chunk-search endpoint
+3. API Server performs pgvector similarity search
+4. Returns top-K chunks ordered by relevance
+5. Worker reranks those chunks
+6. Worker concatenates top reranked chunks into context string with page markers
+7. If total context exceeds the context limit:
    → Trim to top chunks that fit within context window
-   → Prefer higher-similarity chunks
-6. Include chunk_ids in context so LLM can reference them in citations
+8. Include chunk_ids in context so LLM can reference them in citations
 ```
 
 Context template per chunk:

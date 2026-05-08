@@ -79,7 +79,8 @@
    → GET /api/tables/{id}/extraction-manifest → list of all cells to process
    → For each unique document: fetch common chunks? (optional optimization)
    → For each cell concurrently:
-     → GET /api/documents/{doc_id}/chunks?query={prompt} (RAG)
+     → embed column prompt
+     → POST /api/documents/{doc_id}/chunk-search (RAG)
      → call LLM → parse response
      → PUBLISH cell_completed event (SSE Service)
    → Once finished or batch threshold reached:

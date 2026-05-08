@@ -285,12 +285,15 @@ Frontend scales bounding box coordinates by `render_dpi / 72` to position highli
 
 ---
 
-### GET /api/documents/{doc_id}/chunks [INTERNAL]
+### POST /api/documents/{doc_id}/chunk-search [INTERNAL]
 
-Semantic search over a document's chunks. Used internally by the Extraction Worker for RAG retrieval.
+Vector search over a document's chunks. Used internally by the Extraction Worker for RAG retrieval.
 
 ```
-Query params: ?query=liability+cap&top_k=10
+Request: {
+  "query_embedding": [0.023, -0.041, 0.067, ...],
+  "top_k": 20
+}
 
 Response: {
   "chunks": [
